@@ -1,0 +1,46 @@
+@page "/ConfirmacionPaquete"
+@layout NoMenuLayout
+
+@inject AppNavigator Navigator
+@inject NavigationManager NavigationManager
+@inject TranslationService TranslationService
+@inject ILocalStorageService LocalStorage
+
+<PageTitle>@TranslationService["ConfirmacionPaquete_Titulo"]</PageTitle>
+
+<div class="confirmacion-page">
+    <div class="confirmacion-card confirmacion-animada">
+        <div class="confirmacion-icono">
+            <span style="font-size: 6rem; line-height: 1">😊</span>
+        </div>
+
+        <h1 class="confirmacion-titulo">@TranslationService["ConfirmacionPaquete_Titulo"]</h1>
+
+        <p class="confirmacion-texto">@TranslationService["ConfirmacionPaquete_Texto"]</p>
+
+        <div class="confirmacion-barra">
+            <div class="confirmacion-barra-progreso"></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _nombre = string.Empty;
+    private bool _iniciado = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _iniciado) return;
+        _iniciado = true;
+
+        await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+
+        var uri = new Uri(NavigationManager.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        _nombre = Uri.UnescapeDataString(query["nombre"] ?? string.Empty);
+        StateHasChanged();
+
+        await Task.Delay(5000);
+        Navigator.NavigateTo("/", true);
+    }
+}

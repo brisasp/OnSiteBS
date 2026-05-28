@@ -1,0 +1,431 @@
+.fichaje-page {
+    height: calc(100vh - 56px);
+    background: #f7f7f8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: .75rem 1.5rem;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.fichaje-card {
+    width: min(100%, 500px);
+    text-align: center;
+    padding: 1.5rem 2.5rem 1.25rem;
+    border-radius: 28px;
+    background: #ffffff;
+    box-shadow: 0 25px 80px rgba(15, 23, 42, .08);
+    border: 1px solid rgba(15, 23, 42, .04);
+}
+
+.fichaje-reloj {
+    margin-bottom: .5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .1rem;
+}
+
+.fichaje-reloj-saludo {
+    font-size: .8rem;
+    font-weight: 700;
+    color: #a91c32;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: .1rem;
+}
+
+.fichaje-reloj-hora {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #111827;
+    letter-spacing: -.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.fichaje-reloj-fecha {
+    font-size: .75rem;
+    color: #6b7280;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.fichaje-divider {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: .6rem 0;
+    width: 100%;
+}
+
+.fichaje-kicker {
+    display: inline-block;
+    margin-bottom: .9rem;
+    color: #a52b31;
+    font-weight: 900;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    font-size: .74rem;
+}
+
+.fichaje-card h1 {
+    margin: 0;
+    color: #111827;
+    font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: -0.055em;
+}
+
+.fichaje-card p {
+    margin: .4rem auto .75rem;
+    max-width: 420px;
+    color: #6b7280;
+    line-height: 1.7;
+    font-size: 1rem;
+}
+
+.fichaje-form {
+    text-align: left;
+}
+
+    .fichaje-form label {
+        display: block;
+        margin-bottom: .7rem;
+        color: #111827;
+        font-size: .96rem;
+        font-weight: 800;
+    }
+
+.fichaje-input {
+    width: 100%;
+    height: 58px;
+    border: 1px solid #e5e7eb;
+    border-radius: 999px;
+    background: #f9fafb;
+    color: #111827;
+    padding: 0 1.4rem;
+    font-size: 1rem;
+    outline: none;
+    box-sizing: border-box;
+    transition: all .18s ease;
+}
+
+    .fichaje-input::placeholder {
+        color: #9ca3af;
+    }
+
+    .fichaje-input:focus {
+        background: #ffffff;
+        border-color: #a52b31;
+        box-shadow: 0 0 0 4px rgba(165, 43, 49, .12);
+    }
+
+.fichaje-actions {
+    display: flex;
+    gap: .6rem;
+    margin-top: .6rem;
+}
+
+.fichaje-btn {
+    flex: 1;
+    height: 48px;
+    border: 0;
+    border-radius: 999px;
+    font-size: .97rem;
+    font-weight: 800;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: .65rem;
+    cursor: pointer;
+    transition: all .18s ease;
+    font-family: inherit;
+}
+
+    .fichaje-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .fichaje-btn:active {
+        transform: scale(.99);
+    }
+
+    .fichaje-btn i {
+        font-size: 1rem;
+        font-weight: 900;
+    }
+
+.fichaje-btn-primary {
+    background: linear-gradient(180deg, #b1363d 0%, #99292f 100%);
+    color: #ffffff;
+    box-shadow: 0 16px 34px rgba(165, 43, 49, .20);
+}
+
+    .fichaje-btn-primary:hover {
+        filter: brightness(1.03);
+    }
+
+.fichaje-btn-secondary {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+}
+
+    .fichaje-btn-secondary:hover {
+        background: #eceef2;
+    }
+
+@media (max-width: 640px) {
+
+    .fichaje-page {
+        padding: 2rem 1rem;
+    }
+
+    .fichaje-card {
+        padding: 2.2rem 1.5rem;
+        border-radius: 26px;
+    }
+
+        .fichaje-card h1 {
+            font-size: 2.4rem;
+        }
+
+    .fichaje-actions {
+        flex-direction: column;
+    }
+}
+
+/* -- Quitar flechas input número -- */
+.fichaje-input[type=number]::-webkit-inner-spin-button,
+.fichaje-input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.fichaje-input[type=number] { -moz-appearance: textfield; }
+
+/* -- Worker card -- */
+.fichaje-worker-card {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    padding: .9rem 1.1rem;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 14px;
+    margin-top: .5rem;
+    margin-bottom: .4rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.fichaje-worker-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: #dcfce7;
+    border: 1px solid #bbf7d0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: #16a34a;
+    flex-shrink: 0;
+}
+
+.fichaje-worker-info {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    min-width: 0;
+}
+
+.fichaje-worker-nombre {
+    font-size: .97rem;
+    font-weight: 700;
+    color: #166534;
+}
+
+.fichaje-worker-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .78rem;
+    font-weight: 600;
+    padding: .2rem .65rem;
+    border-radius: 999px;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.estado-activo { background: #dcfce7; color: #166534; }
+.estado-activo .status-dot { background: #16a34a; }
+
+.estado-pausado { background: #fef9c3; color: #854d0e; }
+.estado-pausado .status-dot { background: #ca8a04; }
+
+.estado-libre { background: #f1f5f9; color: #475569; }
+.estado-libre .status-dot { background: #94a3b8; }
+
+.status-ausente { background: #fef9c3; color: #854d0e; }
+.status-ausente .status-dot { background: #ca8a04; }
+
+/* -- Botones adicionales -- */
+.fichaje-btn-pause {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: #fff;
+    border: none;
+    padding: 0.8rem 1.8rem;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: opacity 0.2s, transform 0.15s;
+}
+
+.fichaje-btn-pause:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.fichaje-btn-resume {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: #fff;
+    border: none;
+    padding: 0.8rem 1.8rem;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: opacity 0.2s, transform 0.15s;
+}
+
+.fichaje-btn-resume:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.fichaje-btn-ausencia {
+    background: transparent;
+    color: var(--color-principal, #c0392b);
+    border: 2px solid var(--color-principal, #c0392b);
+    padding: 0.8rem 1.8rem;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background 0.2s, color 0.2s;
+}
+
+.fichaje-btn-ausencia:hover {
+    background: var(--color-principal, #c0392b);
+    color: #fff;
+}
+
+/* ===== NUMPAD DISPLAY ===== */
+.numpad-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    min-height: 42px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 0 1.2rem;
+    margin-bottom: .6rem;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.numpad-digit {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #a91c32;
+    letter-spacing: .05em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.numpad-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.3rem;
+    background: #a91c32;
+    border-radius: 2px;
+    animation: blink .8s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+
+.numpad-slot {
+    display: inline-block;
+    width: 14px;
+    height: 2px;
+    background: #d1d5db;
+    border-radius: 2px;
+    align-self: center;
+}
+
+/* ===== NUMPAD GRID ===== */
+.numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .6rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.numpad-key {
+    height: 52px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111827;
+    cursor: pointer;
+    transition: background .12s, transform .1s, box-shadow .12s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+
+    .numpad-key:hover {
+        background: #f3f4f6;
+        box-shadow: 0 3px 8px rgba(0,0,0,.1);
+    }
+
+    .numpad-key:active {
+        transform: scale(.95);
+        background: #e5e7eb;
+    }
+
+.numpad-key--action {
+    font-size: .9rem;
+    font-weight: 700;
+    color: #6b7280;
+    background: #f9fafb;
+}

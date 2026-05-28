@@ -1,0 +1,303 @@
+@page "/GestionEtt"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+
+@inject IToastService ToastService
+@inject IGestionAccesosService GestionAccesosService
+
+<PageTitle>Gestión ETTs</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando empresas...</span>
+        </div>
+    </div>
+}
+
+<div class="ett-page">
+    <section class="ett-hero">
+        <div>
+            <span class="ett-kicker">RRHH</span>
+            <h1>Gestión de ETTs</h1>
+            <p>Administra las empresas de trabajo temporal registradas en el sistema.</p>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat-card">
+                <span>Total</span>
+                <strong>@_data.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span>Activas</span>
+                <strong>@_data.Count(e => !e.Borrado)</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="ett-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar empresa..." @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-primary" @onclick="() => AbrirModal(null)">
+                <i class="bi bi-plus-lg"></i>
+                Nueva ETT
+            </button>
+        </div>
+    </section>
+
+    <div class="ett-content-grid">
+    <section class="ett-table-card">
+        <div class="table-card-header">
+            <div>
+                <h2>Listado de empresas</h2>
+                <p>@EttFiltradas.Count() @(EttFiltradas.Count() == 1 ? "empresa encontrada" : "empresas encontradas")</p>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="ett-table">
+                <thead>
+                    <tr>
+                        <th>Acciones</th>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Fecha registro</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!EttFiltradas.Any())
+                    {
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <i class="bi bi-building-x"></i>
+                                    <strong>No hay empresas para mostrar</strong>
+                                    <span>Crea la primera ETT con el botón "Nueva ETT".</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var ett in EttFiltradas)
+                        {
+                            <tr class="@(ett.Borrado ? "row-deleted" : "")">
+                                <td>
+                                    <div class="row-actions">
+                                        <button type="button" class="btn-icon edit" @onclick="() => AbrirModal(ett)" title="Editar">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (!ett.Borrado)
+                                        {
+                                            <button type="button" class="btn-icon delete" @onclick="() => EliminarEtt(ett)" title="Eliminar">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                                <td>@ett.IdEtt</td>
+                                <td class="strong-cell">@ett.Nombre</td>
+                                <td>@(ett.FechaRegistro?.ToString("dd/MM/yyyy") ?? "-")</td>
+                                <td>
+                                    <span class="badge @(ett.Borrado ? "badge-deleted" : "badge-active")">
+                                        @(ett.Borrado ? "Eliminada" : "Activa")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* Panel lateral derecho *@
+    <div class="ett-side-panel">
+        <section class="ett-dist-card">
+            <div class="ett-dist-header">
+                <h2>Distribución de trabajadores</h2>
+                <p>@_trabajadoresPorEtt.Values.Sum() trabajadores en total</p>
+            </div>
+            @if (_trabajadoresPorEtt.Any())
+            {
+                <div class="ett-dist-bars">
+                    @{ var maxVal = _trabajadoresPorEtt.Values.Max(); var totalTrab = _trabajadoresPorEtt.Values.Sum(); }
+                    @foreach (var ett in _data.Where(e => !e.Borrado))
+                    {
+                        var count = _trabajadoresPorEtt.GetValueOrDefault(ett.Nombre, 0);
+                        var pct = maxVal > 0 ? (count * 100 / maxVal) : 0;
+                        var pctTotal = totalTrab > 0 ? (count * 100 / totalTrab) : 0;
+                        <div class="ett-dist-row">
+                            <span class="ett-dist-label">@ett.Nombre</span>
+                            <div class="ett-dist-track">
+                                <div class="ett-dist-fill" style="width:@pct%"></div>
+                            </div>
+                            <span class="ett-dist-pct">@count · @pctTotal%</span>
+                        </div>
+                    }
+                </div>
+                <table class="ett-resumen-table">
+                    <thead><tr><th>Empresa</th><th>Trabajadores</th><th>%</th></tr></thead>
+                    <tbody>
+                        @{ var tot = _trabajadoresPorEtt.Values.Sum(); }
+                        @foreach (var (empresa, count) in _trabajadoresPorEtt.OrderByDescending(e => e.Value))
+                        {
+                            <tr>
+                                <td>@empresa</td>
+                                <td>@count</td>
+                                <td>@(tot > 0 ? $"{count * 100 / tot}%" : "-")</td>
+                            </tr>
+                        }
+                        <tr class="ett-resumen-total"><td><strong>Total</strong></td><td><strong>@tot</strong></td><td><strong>100%</strong></td></tr>
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p style="color:#94a3b8;font-size:.85rem;margin-top:.5rem">No hay trabajadores registrados.</p>
+            }
+        </section>
+    </div>
+    </div>
+
+    @if (_mostrarModal)
+    {
+        <div class="modal-backdrop-custom" @onclick="CerrarModal">
+            <div class="ett-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>@(_editando.IdEtt == 0 ? "Nueva empresa ETT" : "Editar empresa ETT")</h3>
+                        <p>@(_editando.IdEtt == 0 ? "Introduce el nombre de la nueva empresa." : $"Editando empresa #{_editando.IdEtt}")</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body-custom">
+                    <div class="form-field">
+                        <label>Nombre de la empresa *</label>
+                        <input type="text" placeholder="Ej. Randstad, Adecco..." @bind="_editando.Nombre" />
+                    </div>
+                </div>
+
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn-ui btn-primary" @onclick="GuardarEtt" disabled="@_guardando">
+                        @if (_guardando) { <span class="btn-spinner"></span> }
+                        else { <i class="bi bi-check-lg"></i> }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _guardando;
+    private bool _mostrarModal;
+    private List<EmpresasEttDTO> _data = new();
+    private EmpresasEttDTO _editando = new();
+    private string _search = string.Empty;
+    private Dictionary<string, int> _trabajadoresPorEtt = new();
+
+    private IEnumerable<EmpresasEttDTO> EttFiltradas => string.IsNullOrWhiteSpace(_search)
+        ? _data
+        : _data.Where(e => e.Nombre.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try { await CargarDatos(); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CargarDatos()
+    {
+        var result = await GestionAccesosService.GetAllEmpresas();
+        if (result.Errors.Any()) { ToastService.MostrarError(result.Errors.First()); return; }
+        _data = result.Data ?? new();
+
+        var trabajadores = await GestionAccesosService.GetAllTrabajadores();
+        if (trabajadores?.Data != null)
+        {
+            _trabajadoresPorEtt = trabajadores.Data
+                .Where(t => !t.Borrado && !string.IsNullOrWhiteSpace(t.NombreETT))
+                .GroupBy(t => t.NombreETT)
+                .ToDictionary(g => g.Key, g => g.Count());
+        }
+    }
+
+    private void AbrirModal(EmpresasEttDTO? ett)
+    {
+        _editando = ett == null
+            ? new EmpresasEttDTO()
+            : new EmpresasEttDTO { IdEtt = ett.IdEtt, Nombre = ett.Nombre, FechaRegistro = ett.FechaRegistro };
+
+        _mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModal = false;
+        _editando = new EmpresasEttDTO();
+    }
+
+    private async Task GuardarEtt()
+    {
+        if (string.IsNullOrWhiteSpace(_editando.Nombre))
+        {
+            ToastService.MostrarError("El nombre de la empresa es obligatorio.");
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var result = await GestionAccesosService.TratarEmpresa(_editando);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk(_editando.IdEtt == 0 ? "Empresa creada." : "Empresa actualizada.");
+            CerrarModal();
+            await CargarDatos();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task EliminarEtt(EmpresasEttDTO ett)
+    {
+        _isLoading = true;
+        try
+        {
+            var result = await GestionAccesosService.TratarEmpresa(ett, eliminar: true);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk($"Empresa \"{ett.Nombre}\" eliminada.");
+            await CargarDatos();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

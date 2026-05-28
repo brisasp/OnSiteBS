@@ -1,0 +1,422 @@
+﻿@* @page "/GestionGeneral"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+@inject IJSRuntime jsRuntime
+@inject AppNavigator Navigator
+
+@rendermode InteractiveAuto
+@attribute [StreamRendering]
+
+<PageTitle>Fichajes ETT</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando datos...</span>
+        </div>
+    </div>
+}
+
+<div class="ett-dashboard-page">
+    <section class="ett-header">
+        <div>
+            <span class="ett-eyebrow">Panel de control</span>
+            <h1>Fichajes ETT</h1>
+            <p>Resumen operativo de trabajadores, movimientos y fichajes recientes.</p>
+        </div>
+    </section>
+
+    <section class="dashboard-grid">
+        <article class="dashboard-card">
+            <div class="card-header">
+                <div>
+                    <h2>Estado de trabajadores</h2>
+                    <p>Distribución actual por estado</p>
+                </div>
+            </div>
+
+            <div class="stats-list">
+                @foreach (var stat in TrabajadorStats)
+                {
+                    var total = TrabajadorStats.Sum(x => x.Count);
+                    var percent = total > 0 ? Math.Round((stat.Count * 100.0) / total, 1) : 0;
+
+                    <button class="stat-row" type="button" @onclick="() => OnStatClick(stat.Category)">
+                        <div class="stat-info">
+                            <span class="stat-dot @GetStatClass(stat.Category)"></span>
+                            <span>@stat.Category</span>
+                        </div>
+
+                        <div class="stat-values">
+                            <strong>@stat.Count</strong>
+                            <small>@percent%</small>
+                        </div>
+
+                        <div class="stat-bar">
+                            <span class="@GetStatClass(stat.Category)" style="width:@percent%"></span>
+                        </div>
+                    </button>
+                }
+            </div>
+        </article>
+
+        <article class="dashboard-card photo-card">
+            <img src="images/Fachada.jpg" alt="Fachada de la empresa" />
+        </article>
+
+        <article class="dashboard-card">
+            <div class="card-header">
+                <div>
+                    <h2>Movimientos recientes</h2>
+                    <p>Últimos fichajes y ausencias registradas</p>
+                </div>
+            </div>
+
+            @if (!movimientosRecientes.Any())
+            {
+                <p class="empty-message">No hay movimientos recientes.</p>
+            }
+            else
+            {
+                <div class="recent-activity">
+                    @foreach (var movimiento in movimientosRecientes)
+                    {
+                        <div class="activity-item @(movimiento.TipoMovimiento == "Fichaje" ? "fichaje" : "ausencia")">
+                            <div class="activity-icon">
+                                <i class="bi @GetIconClass(movimiento.TipoMovimiento)"></i>
+                            </div>
+
+                            <div class="activity-content">
+                                <strong>@movimiento.NombreTrabajador</strong>
+                                <span>@movimiento.TipoMovimiento</span>
+                                <small>@movimiento.HaceCuanto</small>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </article>
+    </section>
+
+    <section class="dashboard-table-card">
+        <div class="card-header table-header">
+            <div>
+                <h2>Fichajes últimas 24 horas</h2>
+                <p>Listado de entradas, salidas y duración registrada</p>
+            </div>
+
+            <input class="table-search"
+                   placeholder="Buscar trabajador, DNI, ETT..."
+                   @bind="searchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="table-responsive">
+            <table class="ett-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Primer apellido</th>
+                        <th>Segundo apellido</th>
+                        <th>DNI</th>
+                        <th>ETT</th>
+                        <th>Departamento</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Duración</th>
+                        <th>Hace</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @if (!FichajesFiltrados.Any())
+                    {
+                        <tr>
+                            <td colspan="10" class="empty-table">No hay fichajes recientes.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var fichaje in FichajesFiltrados.Take(8))
+                        {
+                            var trabajador = fichaje.IdTrabajadorNavigation;
+
+                            <tr>
+                                <td>@(trabajador?.Nombre ?? "Desconocido")</td>
+                                <td>@(trabajador?.Apellido1 ?? "Desconocido")</td>
+                                <td>@(trabajador?.Apellido2 ?? "Desconocido")</td>
+                                <td>@(trabajador?.Dni ?? "Desconocido")</td>
+                                <td>@(trabajador?.Nombre ?? "Desconocido")</td>
+                                <td>@(trabajador?.Departamento ?? "Desconocido")</td>
+                                <td>@FormatDate(fichaje.HoraEntrada)</td>
+                                <td>@FormatDate(fichaje.HoraSalida)</td>
+                                <td>@fichaje.Duracion min</td>
+                                <td>@fichaje.HaceCuanto min</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@if (showTrabajadoresModal)
+{
+    <div class="modal-backdrop-custom" @onclick="CerrarModal">
+        <div class="trabajadores-modal" @onclick:stopPropagation="true">
+            <div class="modal-header-custom">
+                <div>
+                    <h3>@modalTitle</h3>
+                    <p>@trabajadoresModal.Count trabajador/es</p>
+                </div>
+
+                <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <div class="modal-body-custom">
+                @foreach (var trabajador in trabajadoresModal)
+                {
+                    <div class="worker-item">
+                        <div class="worker-avatar">
+                            @GetInitials(trabajador.Nombre, trabajador.Apellido1)
+                        </div>
+
+                        <div>
+                            <strong>@trabajador.Nombre @trabajador.Apellido1 @trabajador.Apellido2</strong>
+                            <span>@trabajador.Dni · @trabajador.Departamento</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isLoading;
+    private int trabajando;
+    private int noTrabajando;
+    private int enAusencia;
+
+    private string searchText = string.Empty;
+
+    private List<TrabajadorStatDTO> TrabajadorStats = new();
+    private List<MovimientoRecienteDTO> movimientosRecientes = new();
+    private List<FichajesTrabajadorDTO> fichajesRecientes = new();
+    private List<TrabajadoresEttDTO> trabajadores = new();
+    private List<EmpresasEttDTO> etts = new();
+
+    private bool showTrabajadoresModal;
+    private string modalTitle = string.Empty;
+    private List<TrabajadoresEttDTO> trabajadoresModal = new();
+
+    private IEnumerable<FichajesTrabajadorDTO> FichajesFiltrados
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+                return fichajesRecientes;
+
+            var text = searchText.Trim().ToLower();
+
+            return fichajesRecientes.Where(f =>
+            {
+                var t = f.TrabajadorETT;
+
+                return t != null &&
+                       ($"{t.Nombre} {t.Apellido1} {t.Apellido2} {t.DNI} {t.NombreETT} {t.Departamento}")
+                       .ToLower()
+                       .Contains(text);
+            });
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _isLoading = true;
+
+            await CargarDatosTrabajadores();
+            await CargarMovimientosRecientes();
+            await CargarFichajesRecientes();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError("Error al cargar los datos: " + ex.Message);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarDatosTrabajadores()
+    {
+        trabajando = await GestionAccesosService.GetNumTrabajadoresTrabajando();
+        noTrabajando = await GestionAccesosService.GetNumTrabajadoresNoTrabajando();
+        enAusencia = await GestionAccesosService.GetNumTrabajadoresEnAusencia();
+
+        TrabajadorStats =
+        [
+            new TrabajadorStatDTO { Category = "Trabajando", Count = trabajando },
+            new TrabajadorStatDTO { Category = "No Trabajando", Count = noTrabajando },
+            new TrabajadorStatDTO { Category = "En Ausencia", Count = enAusencia }
+        ];
+    }
+
+    private async Task CargarMovimientosRecientes()
+    {
+        var fichajes = await GestionAccesosService.GetAllFichajes();
+        var ausencias = await GestionAccesosService.GetAllAusencias();
+        var trabajadoresResult = await GestionAccesosService.GetAllTrabajadores();
+
+        var trabajadoresDiccionario = trabajadoresResult.Data.ToDictionary(u => u.IdTrabajador, u => new
+        {
+            u.Nombre,
+            u.Apellido1,
+            u.Apellido2
+        });
+
+        movimientosRecientes = fichajes.Data
+            .Select(f => new MovimientoRecienteDTO
+            {
+                NombreTrabajador = trabajadoresDiccionario.ContainsKey(f.IdTrabajador)
+                    ? $"{trabajadoresDiccionario[f.IdTrabajador].Nombre} {trabajadoresDiccionario[f.IdTrabajador].Apellido1} {trabajadoresDiccionario[f.IdTrabajador].Apellido2}"
+                    : "Desconocido",
+                TipoMovimiento = "Fichaje",
+                FechaMovimiento = f.HoraEntrada ?? DateTime.Now
+            })
+            .Concat(ausencias.Data.Select(a => new MovimientoRecienteDTO
+            {
+                NombreTrabajador = trabajadoresDiccionario.ContainsKey(a.IdTrabajador)
+                    ? $"{trabajadoresDiccionario[a.IdTrabajador].Nombre} {trabajadoresDiccionario[a.IdTrabajador].Apellido1} {trabajadoresDiccionario[a.IdTrabajador].Apellido2}"
+                    : "Desconocido",
+                TipoMovimiento = "Ausencia",
+                FechaMovimiento = a.HoraInicio ?? DateTime.Now
+            }))
+            .OrderByDescending(m => m.FechaMovimiento)
+            .Take(10)
+            .ToList();
+    }
+
+    private async Task CargarFichajesRecientes()
+    {
+        var result = await GestionAccesosService.GetFichajesUltimas24H();
+        var trabajadoresResult = await GestionAccesosService.GetAllTrabajadores();
+        var ettsResult = await GestionAccesosService.GetAllETTs();
+
+        if (result?.Data == null || trabajadoresResult?.Data == null || ettsResult?.Data == null)
+            return;
+
+        trabajadores = trabajadoresResult.Data;
+        etts = ettsResult.Data;
+        fichajesRecientes = result.Data;
+
+        ProcesarFichajesRecientes();
+    }
+
+    private void ProcesarFichajesRecientes()
+    {
+        foreach (var fichaje in fichajesRecientes)
+        {
+            var trabajador = trabajadores.FirstOrDefault(t => t.IdTrabajador == fichaje.IdTrabajador);
+
+            if (trabajador != null)
+            {
+                var ett = etts.FirstOrDefault(e => e.IdETT == trabajador.IdETT);
+                trabajador.NombreETT = ett?.Nombre ?? "Desconocido";
+                fichaje.TrabajadorETT = trabajador;
+            }
+
+            fichaje.Duracion = fichaje.HoraEntrada.HasValue
+                ? (int)((fichaje.HoraSalida ?? DateTime.Now) - fichaje.HoraEntrada.Value).TotalMinutes
+                : 0;
+
+            fichaje.HaceCuanto = fichaje.HoraEntrada.HasValue
+                ? (int)(DateTime.Now - fichaje.HoraEntrada.Value).TotalMinutes
+                : 0;
+
+            fichaje.TipoMovimiento = "Fichaje";
+        }
+    }
+
+    private async Task OnStatClick(string categoria)
+    {
+        try
+        {
+            if (categoria == "Trabajando")
+            {
+                var result = await GestionAccesosService.GetTrabajadoresTrabajando();
+                MostrarModal(result.Data, "Trabajadores activos");
+            }
+            else if (categoria == "No Trabajando")
+            {
+                var result = await GestionAccesosService.GetTrabajadoresNoTrabajando();
+                MostrarModal(result.Data, "Trabajadores no trabajando");
+            }
+            else if (categoria == "En Ausencia")
+            {
+                var result = await GestionAccesosService.GetTrabajadoresEnAusencia();
+                MostrarModal(result.Data, "Trabajadores en ausencia");
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar trabajadores: {ex.Message}");
+        }
+    }
+
+    private void MostrarModal(List<TrabajadoresEttDTO>? data, string title)
+    {
+        if (data == null || !data.Any())
+        {
+            ToastService.MostrarInfo("No hay trabajadores para mostrar.");
+            return;
+        }
+
+        trabajadoresModal = data;
+        modalTitle = title;
+        showTrabajadoresModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        showTrabajadoresModal = false;
+    }
+
+    private string GetIconClass(string tipoMovimiento)
+    {
+        return tipoMovimiento == "Fichaje" ? "bi-check-circle" : "bi-exclamation-circle";
+    }
+
+    private string GetStatClass(string category)
+    {
+        return category switch
+        {
+            "Trabajando" => "stat-working",
+            "No Trabajando" => "stat-not-working",
+            "En Ausencia" => "stat-absence",
+            _ => ""
+        };
+    }
+
+    private string FormatDate(DateTime? date)
+    {
+        return date.HasValue ? date.Value.ToString("dd/MM/yyyy HH:mm") : "-";
+    }
+
+    private string GetInitials(string? nombre, string? apellido)
+    {
+        var n = !string.IsNullOrWhiteSpace(nombre) ? nombre[0].ToString() : "";
+        var a = !string.IsNullOrWhiteSpace(apellido) ? apellido[0].ToString() : "";
+
+        return $"{n}{a}".ToUpper();
+    }
+} *@

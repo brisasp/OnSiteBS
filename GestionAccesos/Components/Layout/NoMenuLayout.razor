@@ -1,0 +1,37 @@
+@inherits LayoutComponentBase
+@inject TranslationService TranslationService
+@implements IDisposable
+
+<nav class="navbar header-navbar px-3">
+    <div class="header-inner">
+        <div class="header-left">
+            <a href="/" style="display:inline-flex;align-items:center;">
+                <img src="Images/logo-blanco.svg" alt="Logo" class="logo-header" />
+            </a>
+        </div>
+
+        <div class="header-right">
+            <NavLink href="/" class="title header-link">
+                @TranslationService["TituloAplicacion"]
+            </NavLink>
+        </div>
+    </div>
+</nav>
+
+<div class="content no-menu-content">
+    @Body
+</div>
+
+<Toast />
+
+@code {
+    protected override void OnInitialized()
+    {
+        TranslationService.OnLanguageChanged += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        TranslationService.OnLanguageChanged -= StateHasChanged;
+    }
+}

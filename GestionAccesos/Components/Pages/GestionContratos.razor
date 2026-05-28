@@ -1,0 +1,617 @@
+@page "/GestionContratos"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+
+@using System.Collections.ObjectModel
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IToastService ToastService
+@inject IGestionAccesosService GestionAccesosService
+
+<PageTitle>Contratos</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando contratos...</span>
+        </div>
+    </div>
+}
+
+<div class="personas-page">
+
+    <section class="personas-hero">
+        <div>
+            <span class="personas-kicker">RECURSOS HUMANOS</span>
+            <h1>Contratos</h1>
+            <p>Gestiona los contratos de los trabajadores de ETT.</p>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat-card">
+                <span>Total</span>
+                <strong>@Data.Count(c => !c.Borrado)</strong>
+            </div>
+            <div class="stat-card">
+                <span>Activos</span>
+                <strong>@Data.Count(c => !c.Borrado && c.FechaFinContrato >= DateTime.Today)</strong>
+            </div>
+            <div class="stat-card">
+                <span>Vencen en 30 días</span>
+                <strong>@Data.Count(c => !c.Borrado && c.FechaFinContrato >= DateTime.Today && c.FechaFinContrato <= DateTime.Today.AddDays(30))</strong>
+            </div>
+            <div class="stat-card">
+                <span>Vencidos</span>
+                <strong>@Data.Count(c => !c.Borrado && c.FechaFinContrato < DateTime.Today)</strong>
+            </div>
+        </div>
+    </section>
+
+    @if (_notificaciones.Any())
+    {
+        <section class="notif-card" style="margin-bottom:1.25rem">
+            <div class="notif-header">
+                <div>
+                    <h2><i class="bi bi-bell"></i> Notificaciones</h2>
+                    <p>Recordatorios y alertas del sistema</p>
+                </div>
+            </div>
+            <div class="notif-list">
+                @foreach (var n in _notificaciones)
+                {
+                    <div class="notif-item notif-@n.Tipo">
+                        <div class="notif-dot"></div>
+                        <div class="notif-content">
+                            <span class="notif-title">@n.Titulo</span>
+                            <span class="notif-desc">@n.Descripcion</span>
+                        </div>
+                        <span class="notif-badge">@n.Badge</span>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="personas-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar por trabajador..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-soft @(_mostrarBorradas ? "active" : "")" @onclick="ToggleMostrarBorradas">
+                <i class="bi bi-archive"></i>
+                @(_mostrarBorradas ? "Ocultar eliminados" : "Ver eliminados")
+            </button>
+
+            <button type="button" class="btn-ui btn-primary" @onclick="() => AbrirModal(null)">
+                <i class="bi bi-plus-lg"></i>
+                Nuevo contrato
+            </button>
+        </div>
+    </section>
+
+    <section class="personas-table-card">
+        <div class="table-card-header">
+            <div>
+                <h2>Listado de contratos</h2>
+                <p>@ContratosFiltrados.Count() @(ContratosFiltrados.Count() == 1 ? "contrato encontrado" : "contratos encontrados")</p>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="personas-table">
+                <thead>
+                    <tr>
+                        <th>Acciones</th>
+                        <th>ID</th>
+                        <th>Trabajador</th>
+                        <th>Inicio</th>
+                        <th>Fin</th>
+                        <th>Fecha baja</th>
+                        <th>Motivo baja</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!ContratosFiltrados.Any())
+                    {
+                        <tr>
+                            <td colspan="8">
+                                <div class="empty-state">
+                                    <i class="bi bi-folder-x"></i>
+                                    <strong>No hay contratos para mostrar</strong>
+                                    <span>Crea un nuevo contrato o ajusta el filtro de búsqueda.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var contrato in ContratosFiltrados)
+                        {
+                            <tr class="@(contrato.Borrado ? "row-deleted" : "")">
+                                <td>
+                                    <div class="row-actions">
+                                        @if (!contrato.Borrado)
+                                        {
+                                            <button type="button" class="btn-icon edit" title="Editar" @onclick="() => AbrirModal(contrato)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button type="button" class="btn-icon delete" title="Eliminar" @onclick="() => ConfirmarEliminar(contrato)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                                <td>@contrato.IdContrato</td>
+                                <td class="strong-cell">@contrato.NombreTrabajador</td>
+                                <td>@contrato.FechaInicioContrato.ToString("dd/MM/yyyy")</td>
+                                <td>@contrato.FechaFinContrato.ToString("dd/MM/yyyy")</td>
+                                <td>@(contrato.FechaBaja.HasValue ? contrato.FechaBaja.Value.ToString("dd/MM/yyyy") : "-")</td>
+                                <td>@(contrato.MotivoBaja ?? "-")</td>
+                                <td>
+                                    <span class="badge @GetBadgeClass(contrato)">
+                                        @GetEstado(contrato)
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* Modal crear / editar *@
+    @if (_mostrarModal)
+    {
+        <div class="modal-backdrop-custom" @onclick="CerrarModal">
+            <div class="personas-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>@(_editando.IdContrato == 0 ? "Nuevo contrato" : "Editar contrato")</h3>
+                        <p>@(_editando.IdContrato == 0 ? "Rellena los datos y guarda." : $"Editando contrato #{_editando.IdContrato}")</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body-custom">
+                    <div class="form-grid">
+                        <div class="form-field full-width" style="position:relative">
+                            <label>Trabajador *</label>
+                            <input type="text"
+                                   placeholder="Buscar trabajador por nombre..."
+                                   value="@_busquedaTrabajador"
+                                   @oninput="OnBusquedaTrabajadorInput"
+                                   autocomplete="off" />
+                            @if (!string.IsNullOrWhiteSpace(_busquedaTrabajador) && _sugerenciasTrabajador.Any())
+                            {
+                                <div class="autocomplete-dropdown">
+                                    @foreach (var t in _sugerenciasTrabajador)
+                                    {
+                                        <div class="autocomplete-item" @onclick="() => SeleccionarTrabajador(t)">
+                                            @t.Nombre @t.Apellido1 @t.Apellido2
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            @if (_editando.IdTrabajador > 0)
+                            {
+                                <small class="field-hint"><i class="bi bi-check-circle-fill text-success"></i> @_editando.NombreTrabajador seleccionado</small>
+                            }
+                        </div>
+
+                        <div class="form-field">
+                            <label>Fecha inicio *</label>
+                            <input type="date"
+                                   @bind="_editando.FechaInicioContrato"
+                                   @bind:format="yyyy-MM-dd" />
+                        </div>
+
+                        <div class="form-field">
+                            <label>Fecha fin *</label>
+                            <input type="date"
+                                   @bind="_editando.FechaFinContrato"
+                                   @bind:format="yyyy-MM-dd" />
+                        </div>
+
+                        @if (_editando.IdContrato != 0)
+                        {
+                            <div class="form-field">
+                                <label>Fecha de baja</label>
+                                <input type="date"
+                                       @bind="_editando.FechaBaja"
+                                       @bind:format="yyyy-MM-dd" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>Motivo de baja</label>
+                                <input type="text"
+                                       placeholder="Ej: Fin de contrato, renuncia..."
+                                       @bind="_editando.MotivoBaja" />
+                            </div>
+                        }
+
+                        <div class="form-field full-width">
+                            <label>Documento del contrato <span class="label-optional">(opcional)</span></label>
+                            @if (_docBytes != null)
+                            {
+                                <div class="doc-preview">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                    <span class="doc-name">@_docNombre</span>
+                                    <span class="doc-size">@FormatBytes(_docBytes.Length)</span>
+                                    <button type="button" class="btn-icon delete" title="Quitar" @onclick="QuitarDocumento">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <InputFile class="input-file" accept=".pdf,.doc,.docx,.jpg,.png" OnChange="OnDocumentoSeleccionado" />
+                                <small>PDF, Word o imagen. Máx. 10 MB.</small>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn-ui btn-primary" @onclick="GuardarContrato" disabled="@_guardando">
+                        @if (_guardando)
+                        {
+                            <span class="btn-spinner"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg"></i>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Modal confirmación eliminar *@
+    @if (_mostrarConfirmEliminar)
+    {
+        <div class="modal-backdrop-custom" @onclick="CancelarEliminar">
+            <div class="confirm-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>Confirmar eliminación</h3>
+                        <p>Esta acción marcará el contrato como eliminado.</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CancelarEliminar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body-custom">
+                    <p>¿Eliminar el contrato de <strong>@_contratoAEliminar?.NombreTrabajador</strong> (@_contratoAEliminar?.FechaInicioContrato.ToString("dd/MM/yyyy") – @_contratoAEliminar?.FechaFinContrato.ToString("dd/MM/yyyy"))?</p>
+                </div>
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CancelarEliminar">Cancelar</button>
+                    <button type="button" class="btn-ui btn-danger" @onclick="EliminarContrato">
+                        <i class="bi bi-trash"></i>
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _mostrarModal;
+    private bool _mostrarConfirmEliminar;
+    private bool _guardando;
+    private bool _mostrarBorradas;
+
+    private ObservableCollection<ContratosEttDTO> Data = new();
+    private List<TrabajadoresDTO> _trabajadores = new();
+    private ContratosEttDTO _editando = new();
+    private ContratosEttDTO? _contratoAEliminar;
+    private List<NotificacionItem> _notificaciones = new();
+    private byte[]? _docBytes;
+    private string? _docNombre;
+
+    private string _busquedaTrabajador = string.Empty;
+    private List<TrabajadoresDTO> _sugerenciasTrabajador = new();
+
+    private record NotificacionItem(string Tipo, string Titulo, string Descripcion, string Badge);
+
+    private string SearchText { get; set; } = string.Empty;
+
+    private IEnumerable<ContratosEttDTO> ContratosFiltrados
+    {
+        get
+        {
+            var lista = _mostrarBorradas
+                ? Data.AsEnumerable()
+                : Data.Where(c => !c.Borrado);
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var text = SearchText.Trim().ToLower();
+                lista = lista.Where(c =>
+                    $"{c.IdContrato} {c.NombreTrabajador}".ToLower().Contains(text));
+            }
+
+            return lista.OrderByDescending(c => c.FechaInicioContrato);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            await Task.WhenAll(CargarGrid(), CargarTrabajadores());
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar contratos: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarGrid()
+    {
+        var result = await GestionAccesosService.GetAllContratos();
+        if (result.Errors.Any())
+        {
+            ToastService.MostrarError(result.Errors.First());
+            return;
+        }
+        Data = new ObservableCollection<ContratosEttDTO>(result.Data);
+        GenerarNotificaciones();
+    }
+
+    private void GenerarNotificaciones()
+    {
+        var hoy = DateTime.Today;
+        _notificaciones = Data
+            .Where(c => !c.Borrado && !c.FechaBaja.HasValue)
+            .Select(c =>
+            {
+                var dias = (c.FechaFinContrato.Date - hoy).Days;
+                if (dias < 0)
+                    return new NotificacionItem("danger",
+                        $"Contrato vencido — {c.NombreTrabajador}",
+                        $"Venció el {c.FechaFinContrato:dd/MM/yyyy}",
+                        $"{Math.Abs(dias)}d");
+                if (dias <= 7)
+                    return new NotificacionItem("danger",
+                        $"Contrato próximo a vencer — {c.NombreTrabajador}",
+                        $"Fecha fin: {c.FechaFinContrato:dd/MM/yyyy}",
+                        dias == 0 ? "Hoy" : $"{dias}d");
+                if (dias <= 15)
+                    return new NotificacionItem("warn",
+                        $"Contrato próximo a vencer — {c.NombreTrabajador}",
+                        $"Fecha fin: {c.FechaFinContrato:dd/MM/yyyy}",
+                        $"{dias}d");
+                if (dias <= 30)
+                    return new NotificacionItem("info",
+                        $"Contrato próximo a vencer — {c.NombreTrabajador}",
+                        $"Fecha fin: {c.FechaFinContrato:dd/MM/yyyy}",
+                        $"{dias}d");
+                return null;
+            })
+            .Where(n => n != null)
+            .Cast<NotificacionItem>()
+            .OrderBy(n => n.Tipo == "danger" ? 0 : n.Tipo == "warn" ? 1 : 2)
+            .ToList();
+    }
+
+    private async Task CargarTrabajadores()
+    {
+        var result = await GestionAccesosService.GetAllTrabajadores();
+        if (result.Errors.Any()) return;
+        _trabajadores = result.Data.Where(t => !t.Borrado).OrderBy(t => t.Nombre).ToList();
+    }
+
+    private void AbrirModal(ContratosEttDTO? contrato)
+    {
+        _busquedaTrabajador = string.Empty;
+        _sugerenciasTrabajador = new();
+
+        _editando = contrato == null
+            ? new ContratosEttDTO { FechaInicioContrato = DateTime.Today, FechaFinContrato = DateTime.Today.AddMonths(6) }
+            : new ContratosEttDTO
+            {
+                IdContrato = contrato.IdContrato,
+                IdTrabajador = contrato.IdTrabajador,
+                FechaInicioContrato = contrato.FechaInicioContrato,
+                FechaFinContrato = contrato.FechaFinContrato,
+                FechaBaja = contrato.FechaBaja,
+                MotivoBaja = contrato.MotivoBaja,
+                NombreTrabajador = contrato.NombreTrabajador
+            };
+
+        if (_editando.IdTrabajador > 0)
+            _busquedaTrabajador = _editando.NombreTrabajador;
+
+        _mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModal = false;
+        _editando = new ContratosEttDTO();
+        _busquedaTrabajador = string.Empty;
+        _sugerenciasTrabajador = new();
+        _docBytes = null;
+        _docNombre = null;
+    }
+
+    private void OnBusquedaTrabajadorInput(ChangeEventArgs e)
+    {
+        _busquedaTrabajador = e.Value?.ToString() ?? string.Empty;
+        _editando.IdTrabajador = 0;
+        _editando.NombreTrabajador = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(_busquedaTrabajador))
+        {
+            _sugerenciasTrabajador = new();
+            return;
+        }
+
+        var texto = _busquedaTrabajador.Trim().ToLower();
+        _sugerenciasTrabajador = _trabajadores
+            .Where(t => $"{t.Nombre} {t.Apellido1} {t.Apellido2}".ToLower().Contains(texto))
+            .Take(6)
+            .ToList();
+    }
+
+    private void SeleccionarTrabajador(TrabajadoresDTO t)
+    {
+        _editando.IdTrabajador = t.IdTrabajador;
+        _editando.NombreTrabajador = $"{t.Nombre} {t.Apellido1} {t.Apellido2}".Trim();
+        _busquedaTrabajador = _editando.NombreTrabajador;
+        _sugerenciasTrabajador = new();
+
+        if (_editando.IdContrato == 0)
+        {
+            _editando.FechaInicioContrato = DateTime.Today;
+            _editando.FechaFinContrato = t.FechaMaximaTemporalidad.HasValue && t.FechaMaximaTemporalidad.Value > DateTime.Today
+                ? t.FechaMaximaTemporalidad.Value
+                : DateTime.Today.AddMonths(6);
+        }
+    }
+
+    private async Task GuardarContrato()
+    {
+        if (_editando.IdTrabajador == 0)
+        {
+            ToastService.MostrarError("Debes seleccionar un trabajador.");
+            return;
+        }
+
+        if (_editando.FechaFinContrato < _editando.FechaInicioContrato)
+        {
+            ToastService.MostrarError("La fecha de fin no puede ser anterior a la de inicio.");
+            return;
+        }
+
+        _guardando = true;
+        try
+        {
+            var result = await GestionAccesosService.TratarContrato(_editando);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk(_editando.IdContrato == 0
+                ? "Contrato creado correctamente."
+                : "Contrato actualizado correctamente.");
+
+            CerrarModal();
+            await CargarGrid();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void ConfirmarEliminar(ContratosEttDTO contrato)
+    {
+        _contratoAEliminar = contrato;
+        _mostrarConfirmEliminar = true;
+    }
+
+    private void CancelarEliminar()
+    {
+        _contratoAEliminar = null;
+        _mostrarConfirmEliminar = false;
+    }
+
+    private async Task EliminarContrato()
+    {
+        if (_contratoAEliminar == null) return;
+
+        _isLoading = true;
+        _mostrarConfirmEliminar = false;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarContrato(_contratoAEliminar, eliminar: true);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk("Contrato eliminado correctamente.");
+            _contratoAEliminar = null;
+            await CargarGrid();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnDocumentoSeleccionado(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file.Size > 10 * 1024 * 1024)
+        {
+            ToastService.MostrarError("El documento no puede superar los 10 MB.");
+            return;
+        }
+
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(10 * 1024 * 1024).CopyToAsync(ms);
+        _docBytes = ms.ToArray();
+        _docNombre = file.Name;
+    }
+
+    private void QuitarDocumento()
+    {
+        _docBytes = null;
+        _docNombre = null;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024):F1} MB";
+    }
+
+    private void ToggleMostrarBorradas() => _mostrarBorradas = !_mostrarBorradas;
+
+    private static string GetEstado(ContratosEttDTO c)
+    {
+        if (c.Borrado) return "Eliminado";
+        if (c.FechaBaja.HasValue) return "Baja";
+        if (c.FechaFinContrato < DateTime.Today) return "Vencido";
+        if (c.FechaFinContrato <= DateTime.Today.AddDays(30)) return "Vence pronto";
+        return "Activo";
+    }
+
+    private static string GetBadgeClass(ContratosEttDTO c)
+    {
+        if (c.Borrado) return "badge-baja";
+        if (c.FechaBaja.HasValue) return "badge-baja";
+        if (c.FechaFinContrato < DateTime.Today) return "badge-baja";
+        if (c.FechaFinContrato <= DateTime.Today.AddDays(30)) return "badge-warning";
+        return "badge-activa";
+    }
+}

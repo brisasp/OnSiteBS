@@ -1,0 +1,589 @@
+@page "/GestionParametrosWorker"
+@attribute [Authorize(Roles = "Administrador")]
+
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+@inject FestivosService FestivosService
+@inject FichajeAutoCloseHistorial AutoCloseHistorial
+
+<PageTitle>Parámetros Worker</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando datos...</span>
+        </div>
+    </div>
+}
+
+<div class="params-page">
+
+    <section class="params-hero">
+        <div>
+            <span class="params-kicker">ADMINISTRACIÓN</span>
+            <h1>Parámetros Worker</h1>
+            <p>Supervisa incidencias en fichajes. El sistema cierra automáticamente fichajes que superen <strong>@UmbralHoras horas</strong> y ausencias que superen <strong>@UmbralHorasAusencias horas</strong>. El servicio comprueba cada 5 minutos.</p>
+        </div>
+
+        <div class="params-kpis">
+            <div class="pkpi pkpi-warn">
+                <i class="bi bi-clock-history"></i>
+                <div>
+                    <strong>@_fichajesAbiertos.Count</strong>
+                    <span>Fichajes abiertos</span>
+                </div>
+            </div>
+            <div class="pkpi pkpi-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <div>
+                    <strong>@(_fichajesSospechosos.Count + AutoCloseHistorial.Entradas.Count)</strong>
+                    <span>Superan @UmbralHoras h</span>
+                </div>
+            </div>
+            <div class="pkpi pkpi-info">
+                <i class="bi bi-calendar-x"></i>
+                <div>
+                    <strong>@_ausenciasAbiertas.Count</strong>
+                    <span>Ausencias &gt; @UmbralHorasAusencias h</span>
+                </div>
+            </div>
+            <div class="pkpi pkpi-auto">
+                <i class="bi bi-robot"></i>
+                <div>
+                    <strong>Activo</strong>
+                    <span>Cierre automático</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ===== CONFIGURACIÓN UMBRAL FICHAJES ===== *@
+    <section class="params-card">
+        <div class="params-card-header">
+            <div>
+                <h2><i class="bi bi-sliders"></i> Umbral de cierre automático</h2>
+                <p>Número de horas máximo que puede estar un fichaje abierto antes de cerrarse automáticamente. Actualmente: <strong>@UmbralHoras horas</strong>.</p>
+            </div>
+        </div>
+
+        <div class="umbral-config">
+            <div class="umbral-field">
+                <div class="umbral-input-row">
+                    <input type="number" min="1" max="24" @bind="_umbralEditable" class="umbral-input" />
+                    <span class="umbral-unit">horas</span>
+                    <button class="btn-ui btn-primary" @onclick="GuardarUmbral" disabled="@_guardandoUmbral">
+                        @if (_guardandoUmbral) { <span class="btn-spinner"></span> } else { <i class="bi bi-check-lg"></i> }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ===== CONFIGURACIÓN UMBRAL AUSENCIAS ===== *@
+    <section class="params-card">
+        <div class="params-card-header">
+            <div>
+                <h2><i class="bi bi-calendar-x"></i> Umbral de cierre automático de ausencias</h2>
+                <p>Horas máximas que puede estar una ausencia abierta antes de cerrarse automáticamente. Actualmente: <strong>@UmbralHorasAusencias horas</strong>.</p>
+            </div>
+        </div>
+
+        <div class="umbral-config">
+            <div class="umbral-field">
+                <div class="umbral-input-row">
+                    <input type="number" min="1" max="24" @bind="_umbralAusenciasEditable" class="umbral-input" />
+                    <span class="umbral-unit">horas</span>
+                    <button class="btn-ui btn-primary" @onclick="GuardarUmbralAusencias" disabled="@_guardandoUmbralAusencias">
+                        @if (_guardandoUmbralAusencias) { <span class="btn-spinner"></span> } else { <i class="bi bi-check-lg"></i> }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ===== FICHAJES ABIERTOS ===== *@
+    <section class="params-card">
+        <div class="params-card-header">
+            <div>
+                <h2><i class="bi bi-clock-history"></i> Fichajes abiertos</h2>
+                <p>Trabajadores con entrada registrada pero sin salida. Puedes cerrarlos manualmente.</p>
+            </div>
+            <button class="btn-ui btn-primary" @onclick="Recargar">
+                <i class="bi bi-arrow-clockwise"></i> Actualizar
+            </button>
+        </div>
+
+        @if (!_fichajesAbiertos.Any())
+        {
+            <div class="params-empty">
+                <i class="bi bi-check-circle text-success"></i>
+                <strong>Todo correcto</strong>
+                <span>No hay fichajes abiertos en este momento.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="params-table">
+                    <thead>
+                        <tr>
+                            <th>Trabajador</th>
+                            <th>Departamento</th>
+                            <th>Hora entrada</th>
+                            <th>Tiempo abierto</th>
+                            <th>Alerta</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in _fichajesAbiertos)
+                        {
+                            var horas = (DateTime.Now - (f.HoraEntrada ?? DateTime.Now)).TotalHours;
+                            var esSospechoso = horas >= UmbralHoras;
+
+                            <tr class="@(esSospechoso ? "row-danger" : "")">
+                                <td class="strong-cell">@f.NombreCompleto</td>
+                                <td>@(f.Departamento ?? "-")</td>
+                                <td>@(f.HoraEntrada?.ToString("dd/MM/yyyy HH:mm") ?? "-")</td>
+                                <td>@FormatTiempo(f.HoraEntrada)</td>
+                                <td>
+                                    @if (esSospechoso)
+                                    {
+                                        <span class="badge-alerta badge-danger">
+                                            <i class="bi bi-exclamation-triangle-fill"></i> Anómalo
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-alerta badge-ok">
+                                            <i class="bi bi-check-circle"></i> Normal
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn-ui btn-close-fichaje"
+                                            @onclick="() => CerrarFichaje(f)"
+                                            disabled="@_cerrando">
+                                        <i class="bi bi-box-arrow-right"></i>
+                                        Cerrar fichaje
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @* ===== AUSENCIAS SIN CERRAR ===== *@
+    @if (_ausenciasAbiertas.Any())
+    {
+    <section class="params-card">
+        <div class="params-card-header">
+            <div>
+                <h2><i class="bi bi-calendar-x"></i> Ausencias sin cerrar</h2>
+                <p>Ausencias que llevan más de un día abiertas y pueden necesitar revisión.</p>
+            </div>
+        </div>
+
+        @if (!_ausenciasAbiertas.Any())
+        {
+            <div class="params-empty">
+                <i class="bi bi-check-circle text-success"></i>
+                <strong>Todo correcto</strong>
+                <span>No hay ausencias sin cerrar.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="params-table">
+                    <thead>
+                        <tr>
+                            <th>Trabajador ID</th>
+                            <th>Motivo</th>
+                            <th>Inicio</th>
+                            <th>Tiempo abierto</th>
+                            <th>Observaciones</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _ausenciasAbiertas)
+                        {
+                            <tr>
+                                <td class="strong-cell">#@a.IdTrabajador</td>
+                                <td>@(a.DescripcionMotivo.Length > 0 ? a.DescripcionMotivo : a.Motivo.ToString())</td>
+                                <td>@a.HoraInicio.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@FormatTiempo(a.HoraInicio)</td>
+                                <td>@(a.Observaciones ?? "-")</td>
+                                <td>
+                                    <button class="btn-ui btn-close-fichaje"
+                                            @onclick="() => CerrarAusencia(a)"
+                                            disabled="@_cerrando">
+                                        <i class="bi bi-x-circle"></i>
+                                        Cerrar ausencia
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+    }
+
+    @* ===== HISTORIAL CIERRES AUTOMÁTICOS ===== *@
+    <section class="params-card">
+        <div class="params-card-header">
+            <div>
+                <h2><i class="bi bi-robot"></i> Historial de cierres automáticos</h2>
+                <p>Fichajes cerrados automáticamente por superar <strong>@UmbralHoras horas</strong> durante esta sesión.</p>
+            </div>
+            @if (AutoCloseHistorial.Entradas.Any())
+            {
+                <button class="btn-ui btn-soft" @onclick="() => { AutoCloseHistorial.Limpiar(); StateHasChanged(); }">
+                    <i class="bi bi-trash"></i> Limpiar historial
+                </button>
+            }
+        </div>
+
+        @if (!AutoCloseHistorial.Entradas.Any())
+        {
+            <div class="params-empty">
+                <i class="bi bi-check-circle text-success"></i>
+                <strong>Sin incidencias</strong>
+                <span>No se han cerrado fichajes automáticamente en esta sesión.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="params-table">
+                    <thead>
+                        <tr>
+                            <th>Trabajador</th>
+                            <th>Departamento</th>
+                            <th>Entrada</th>
+                            <th>Cierre auto.</th>
+                            <th>Horas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in AutoCloseHistorial.Entradas.OrderByDescending(e => e.HoraCierre))
+                        {
+                            <tr class="row-danger">
+                                <td class="strong-cell">@entry.NombreTrabajador</td>
+                                <td>@(entry.Departamento ?? "-")</td>
+                                <td>@entry.HoraEntrada.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@entry.HoraCierre.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>
+                                    <span class="badge-alerta badge-danger">
+                                        <i class="bi bi-exclamation-triangle-fill"></i> @entry.HorasTranscurridas h
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @* ===== FESTIVOS ===== *@
+    <section class="params-card">
+        <div class="params-card-header">
+            <div>
+                <h2><i class="bi bi-calendar-heart"></i> Festivos</h2>
+                <p>Gestiona los días festivos nacionales y locales del calendario laboral.</p>
+            </div>
+        </div>
+
+        <div class="festivos-form">
+            <div class="festivo-input-group">
+                <input type="date" class="form-control-ui" @bind="_nuevoFestivo.Fecha" />
+                <input type="text" class="form-control-ui" placeholder="Descripción (ej. Navidad)" @bind="_nuevoFestivo.Descripcion" maxlength="80" />
+                <select class="form-control-ui" @bind="_nuevoFestivo.Ambito">
+                    <option value="Nacional">Nacional</option>
+                    <option value="Regional">Regional</option>
+                    <option value="Local">Local</option>
+                </select>
+                <button class="btn-festivo-add" @onclick="AgregarFestivo">
+                    <i class="bi bi-plus-circle"></i> Añadir
+                </button>
+            </div>
+        </div>
+
+        @if (!_festivos.Any())
+        {
+            <div class="params-empty">
+                <i class="bi bi-calendar text-muted"></i>
+                <strong>Sin festivos</strong>
+                <span>No hay festivos configurados. Añade el primero.</span>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="params-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Ámbito</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in _festivos)
+                        {
+                            <tr>
+                                <td><strong>@f.Fecha.ToString("dd/MM/yyyy")</strong> <span class="text-muted small">(@f.Fecha.DayOfWeek)</span></td>
+                                <td>@f.Descripcion</td>
+                                <td><span class="badge-ambito badge-@f.Ambito.ToLower()">@f.Ambito</span></td>
+                                <td>
+                                    <button class="btn-ui btn-danger-soft" @onclick="() => EliminarFestivo(f.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+</div>
+
+@code {
+    private int UmbralHoras = 9;
+    private int _umbralEditable = 9;
+    private bool _guardandoUmbral;
+
+    private int UmbralHorasAusencias = 6;
+    private int _umbralAusenciasEditable = 6;
+    private bool _guardandoUmbralAusencias;
+
+    private bool _isLoading;
+    private bool _cerrando;
+
+    private List<FichajesTrabajadorDTO> _fichajesAbiertos = new();
+    private List<FichajesTrabajadorDTO> _fichajesSospechosos = new();
+    private List<AusenciasTrabajadorDTO> _ausenciasAbiertas = new();
+
+    private List<Festivo> _festivos = new();
+    private Festivo _nuevoFestivo = new() { Fecha = DateOnly.FromDateTime(DateTime.Today) };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarUmbral();
+        await Recargar();
+        _festivos = await FestivosService.GetAllAsync();
+    }
+
+    private async Task CargarUmbral()
+    {
+        try
+        {
+            var param = await GestionAccesosService.GetParametroWorker("horas_cierre_fichaje");
+            if (param != null && int.TryParse(param.Valor, out var val) && val > 0)
+            {
+                UmbralHoras = val;
+                _umbralEditable = val;
+            }
+
+            var paramAus = await GestionAccesosService.GetParametroWorker("horas_cierre_ausencias");
+            if (paramAus != null && int.TryParse(paramAus.Valor, out var valAus) && valAus > 0)
+            {
+                UmbralHorasAusencias = valAus;
+                _umbralAusenciasEditable = valAus;
+            }
+        }
+        catch { }
+    }
+
+    private async Task GuardarUmbral()
+    {
+        if (_umbralEditable < 1 || _umbralEditable > 24)
+        {
+            ToastService.MostrarError("El umbral debe estar entre 1 y 24 horas.");
+            return;
+        }
+
+        _guardandoUmbral = true;
+        try
+        {
+            await GestionAccesosService.SetParametroWorker("horas_cierre_fichaje", _umbralEditable.ToString());
+            UmbralHoras = _umbralEditable;
+            ToastService.MostrarOk($"Umbral de fichajes actualizado a {UmbralHoras} horas.");
+            await Recargar();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al guardar: {ex.Message}");
+        }
+        finally
+        {
+            _guardandoUmbral = false;
+        }
+    }
+
+    private async Task GuardarUmbralAusencias()
+    {
+        if (_umbralAusenciasEditable < 1 || _umbralAusenciasEditable > 24)
+        {
+            ToastService.MostrarError("El umbral debe estar entre 1 y 24 horas.");
+            return;
+        }
+
+        _guardandoUmbralAusencias = true;
+        try
+        {
+            await GestionAccesosService.SetParametroWorker("horas_cierre_ausencias", _umbralAusenciasEditable.ToString());
+            UmbralHorasAusencias = _umbralAusenciasEditable;
+            ToastService.MostrarOk($"Umbral de ausencias actualizado a {UmbralHorasAusencias} horas.");
+            await Recargar();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al guardar: {ex.Message}");
+        }
+        finally
+        {
+            _guardandoUmbralAusencias = false;
+        }
+    }
+
+    private async Task Recargar()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var fichajes = await GestionAccesosService.GetAllFichajes(soloAbiertos: true);
+            if (fichajes?.Data != null)
+            {
+                _fichajesAbiertos = fichajes.Data;
+                _fichajesSospechosos = _fichajesAbiertos
+                    .Where(f => f.HoraEntrada.HasValue &&
+                                (DateTime.Now - f.HoraEntrada.Value).TotalHours >= UmbralHoras)
+                    .ToList();
+            }
+
+            var ausencias = await GestionAccesosService.GetAllAusencias(soloAbiertas: true);
+            if (ausencias?.Data != null)
+            {
+                _ausenciasAbiertas = ausencias.Data
+                    .Where(a => (DateTime.Now - a.HoraInicio).TotalHours >= UmbralHorasAusencias)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar datos: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CerrarFichaje(FichajesTrabajadorDTO fichaje)
+    {
+        _cerrando = true;
+
+        try
+        {
+            fichaje.HoraSalida = DateTime.Now;
+            var result = await GestionAccesosService.TratarFichaje(fichaje);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk($"Fichaje de {fichaje.NombreCompleto} cerrado correctamente.");
+            await Recargar();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cerrar fichaje: {ex.Message}");
+        }
+        finally
+        {
+            _cerrando = false;
+        }
+    }
+
+    private async Task CerrarAusencia(AusenciasTrabajadorDTO ausencia)
+    {
+        _cerrando = true;
+
+        try
+        {
+            var result = await GestionAccesosService.GestionarAusencia(ausencia.IdTrabajador, "cerrar");
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk("Ausencia cerrada correctamente.");
+            await Recargar();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cerrar ausencia: {ex.Message}");
+        }
+        finally
+        {
+            _cerrando = false;
+        }
+    }
+
+    private async Task AgregarFestivo()
+    {
+        if (string.IsNullOrWhiteSpace(_nuevoFestivo.Descripcion))
+        {
+            ToastService.MostrarError("Introduce una descripción para el festivo.");
+            return;
+        }
+
+        await FestivosService.AddAsync(_nuevoFestivo);
+        _festivos = await FestivosService.GetAllAsync();
+        _nuevoFestivo = new() { Fecha = DateOnly.FromDateTime(DateTime.Today) };
+        ToastService.MostrarOk("Festivo añadido correctamente.");
+    }
+
+    private async Task EliminarFestivo(Guid id)
+    {
+        await FestivosService.DeleteAsync(id);
+        _festivos = await FestivosService.GetAllAsync();
+        ToastService.MostrarOk("Festivo eliminado.");
+    }
+
+    private static string FormatTiempo(DateTime? desde)
+    {
+        if (!desde.HasValue) return "-";
+        return FormatTiempo(desde.Value);
+    }
+
+    private static string FormatTiempo(DateTime desde)
+    {
+        var diff = DateTime.Now - desde;
+        if (diff.TotalDays >= 1)
+            return $"{(int)diff.TotalDays}d {diff.Hours}h";
+        if (diff.TotalHours >= 1)
+            return $"{(int)diff.TotalHours}h {diff.Minutes}m";
+        return $"{diff.Minutes}m";
+    }
+}

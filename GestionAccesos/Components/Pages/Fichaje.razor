@@ -1,0 +1,528 @@
+@page "/Fichaje"
+@layout NoMenuLayout
+@using GestionAccesos.Mediatr.Fichaje.Query
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+@inject AppNavigator Navigator
+@inject IJSRuntime JS
+@inject TranslationService TranslationService
+@inject ILocalStorageService LocalStorage
+
+<PageTitle>@TranslationService["FicharETT"]</PageTitle>
+
+<div class="fichaje-page">
+    <section class="fichaje-card">
+        <div class="fichaje-reloj">
+            <span class="fichaje-reloj-hora">@_horaActual</span>
+            <span class="fichaje-reloj-fecha">@_fechaActual</span>
+        </div>
+
+        <hr class="fichaje-divider" />
+
+        <h1>@_saludo</h1>
+        <p>@TranslationService["InstruccionFichaje"]</p>
+
+        <div class="fichaje-form">
+            <div class="numpad-display">
+                @{
+                    var digits = Text.ToCharArray();
+                    var maxSlots = Math.Max(digits.Length + 1, 4);
+                }
+                @for (int i = 0; i < maxSlots; i++)
+                {
+                    var idx = i;
+                    if (idx < digits.Length)
+                    {
+                        <span class="numpad-digit">@digits[idx]</span>
+                    }
+                    else if (idx == digits.Length)
+                    {
+                        <span class="numpad-cursor"></span>
+                    }
+                    else
+                    {
+                        <span class="numpad-slot"></span>
+                    }
+                }
+            </div>
+
+            <div class="numpad-grid">
+                @foreach (var n in new[] { "1","2","3","4","5","6","7","8","9" })
+                {
+                    var key = n;
+                    <button class="numpad-key" @onclick="() => PressKey(key)">@key</button>
+                }
+                <button class="numpad-key numpad-key--action" @onclick="ClearAll">@TranslationService["BorrarTodo"]</button>
+                <button class="numpad-key" @onclick='() => PressKey("0")'>0</button>
+                <button class="numpad-key numpad-key--action" @onclick="DeleteLast">
+                    <i class="bi bi-backspace"></i>
+                </button>
+            </div>
+
+            @if (_nombreConfirmado != null)
+            {
+                <div class="fichaje-worker-card">
+                    <div class="fichaje-worker-icon">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div class="fichaje-worker-info">
+                        <span class="fichaje-worker-nombre">@_nombreConfirmado</span>
+                        @if (_ausenciaAbierta != null)
+                        {
+                            <span class="fichaje-worker-status status-ausente">
+                                <span class="status-dot"></span>
+                                @TranslationService["AusenciaActiva"]: @_ausenciaAbierta.Motivo
+                            </span>
+                        }
+                        else if (_estado != null)
+                        {
+                            <span class="fichaje-worker-status @EstadoBadgeClass">
+                                <span class="status-dot"></span>
+                                @ObtenerEstadoBadgeTexto()
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="fichaje-actions">
+                @if (_ausenciaAbierta != null && (_estado == null || !_estado.TieneFichajeAbierto))
+                {
+                    <button type="button" class="fichaje-btn fichaje-btn-resume"
+                            disabled="@_isLoading" @onclick="VolverAlTurno">
+                        <i class="bi bi-arrow-return-left"></i>
+                        @TranslationService["VolverAlTurno"]
+                    </button>
+                }
+                else if (_estado == null || !_estado.TieneFichajeAbierto)
+                {
+                    <button type="button" class="fichaje-btn fichaje-btn-primary"
+                            disabled="@_isLoading" @onclick="FicharTrabajador">
+                        <i class="bi bi-check2-circle"></i>
+                        @TranslationService["FicharEntrada"]
+                    </button>
+                }
+                else if (_estado.TienePausaActiva)
+                {
+                    <button type="button" class="fichaje-btn fichaje-btn-resume"
+                            disabled="@_isLoading" @onclick="ReanudarFichaje">
+                        <i class="bi bi-play-circle"></i>
+                        @TranslationService["Reanudar"]
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="fichaje-btn fichaje-btn-secondary"
+                            disabled="@_isLoading" @onclick="FicharTrabajador">
+                        <i class="bi bi-box-arrow-right"></i>
+                        @TranslationService["FicharSalida"]
+                    </button>
+                }
+
+                @if (_ausenciaAbierta == null && (_estado == null || !_estado.TienePausaActiva))
+                {
+                    <button type="button" class="fichaje-btn fichaje-btn-ausencia"
+                            disabled="@_isLoading" @onclick="OpenTipoAusenciaPopup">
+                        <i class="bi bi-calendar-x"></i>
+                        @TranslationService["FicharAusencia"]
+                    </button>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+<FicharAusenciaPopUp @ref="ficharAusenciaPopUp" OnSave="GuardarAusencia" />
+
+@implements IDisposable
+
+@code {
+    private bool _isLoading;
+    private List<DropDownWrapper> trabajadores = new();
+
+    private string _horaActual = DateTime.Now.ToString("HH:mm:ss");
+    private string _fechaActual = string.Empty;
+    private string _saludo = string.Empty;
+    private System.Threading.Timer? _relojTimer;
+
+    public void Dispose() => _relojTimer?.Dispose();
+
+    private System.Globalization.CultureInfo ObtenerCultura()
+    {
+        return TranslationService.CurrentCulture switch
+        {
+            "en" => new System.Globalization.CultureInfo("en-GB"),
+            "fr" => new System.Globalization.CultureInfo("fr-FR"),
+            "ar" => new System.Globalization.CultureInfo("ar-SA"),
+            _ => new System.Globalization.CultureInfo("es-ES")
+        };
+    }
+
+    private string ObtenerFecha() =>
+        DateTime.Now.ToString("dddd, d MMMM yyyy", ObtenerCultura());
+
+    private string ObtenerSaludo()
+    {
+        var hora = DateTime.Now.Hour;
+        return hora switch
+        {
+            >= 6 and < 14 => TranslationService["BuenosDias"],
+            >= 14 and < 21 => TranslationService["BuenasTardes"],
+            _ => TranslationService["BuenasNoches"]
+        };
+    }
+
+    private string ObtenerEstadoBadgeTexto()
+    {
+        if (_estado == null) return TranslationService["SinFichajeAbierto"];
+        if (_estado.TienePausaActiva) return $"{TranslationService["EnPausaDesde"]} {_estado.InicioUltimaPausa:HH:mm}";
+        if (_estado.TieneFichajeAbierto) return $"{TranslationService["TrabajandoDesde"]} {_estado.HoraEntrada:HH:mm}";
+        return TranslationService["SinFichajeAbierto"];
+    }
+
+    private int? selectedTrabajadorID;
+    private FicharAusenciaPopUp? ficharAusenciaPopUp;
+    private string Text { get; set; } = string.Empty;
+    private EstadoFichajeDTO? _estado;
+    private AusenciasTrabajadorDTO? _ausenciaAbierta;
+
+    private string EstadoBadgeClass => _estado switch
+    {
+        { TienePausaActiva: true } => "estado-pausado",
+        { TieneFichajeAbierto: true } => "estado-activo",
+        _ => "estado-libre"
+    };
+
+    private bool _idiomaYaCargado;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_idiomaYaCargado)
+        {
+            _idiomaYaCargado = true;
+            await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _fechaActual = ObtenerFecha();
+        _saludo = ObtenerSaludo();
+
+        _relojTimer = new System.Threading.Timer(_ =>
+        {
+            _horaActual = DateTime.Now.ToString("HH:mm:ss");
+            _fechaActual = ObtenerFecha();
+            _saludo = ObtenerSaludo();
+            InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+
+        try
+        {
+            _isLoading = true;
+            await CargarTrabajadores();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"{TranslationService["BorrarTodo"]}: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarTrabajadores()
+    {
+        var trabajadoresList = await GestionAccesosService.GetTrabajadoresDisponiblesPorFechaTemporalidad();
+
+        if (trabajadoresList?.Data == null)
+        {
+            ToastService.MostrarError(TranslationService["TrabajadorNoDisponible"]);
+            return;
+        }
+
+        trabajadores = trabajadoresList.Data.Select(u => new DropDownWrapper
+        {
+            ID = u.IdTrabajador,
+            Nombre = $"{u.IdTrabajador} - {u.Nombre} {u.Apellido1} {u.Apellido2}"
+        }).ToList();
+    }
+
+    private async Task FicharTrabajador()
+    {
+        await CargarTrabajadores();
+
+        if (!await ResolverTrabajadorSeleccionado())
+            return;
+
+        try
+        {
+            var resultado = await GestionAccesosService.FicharTrabajador(selectedTrabajadorID!.Value);
+
+            if (resultado.Errors.Any())
+            {
+                ToastService.MostrarError(resultado.Errors.First());
+                return;
+            }
+
+            var currentTrabajador = trabajadores.FirstOrDefault(o => o.ID == selectedTrabajadorID.Value);
+
+            if (currentTrabajador == null)
+            {
+                ToastService.MostrarError(TranslationService["TrabajadorNoDisponible"]);
+                LimpiarFormulario();
+                return;
+            }
+
+            var nombre = currentTrabajador.Nombre.Contains("-")
+                ? currentTrabajador.Nombre.Split("-")[1].Trim()
+                : currentTrabajador.Nombre;
+
+            var mensaje = resultado.Data == "Salida"
+                ? $"{TranslationService["FicharSalida"]} — {nombre} 👋"
+                : $"{TranslationService["FicharEntrada"]} — {nombre} 👋";
+
+            ToastService.MostrarOk(mensaje);
+            LimpiarFormulario();
+            Navigator.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Ocurrió un error: {ex.Message}");
+        }
+    }
+
+    private async Task OpenTipoAusenciaPopup()
+    {
+        if (!await ResolverTrabajadorSeleccionado())
+            return;
+
+        var resultadoTrabajador = await GestionAccesosService.GetTrabajadorETTById(selectedTrabajadorID!.Value);
+
+        if (resultadoTrabajador?.Data == null || resultadoTrabajador.Data.Borrado)
+        {
+            ToastService.MostrarError(TranslationService["TrabajadorNoDisponible"]);
+            LimpiarFormulario();
+            return;
+        }
+
+        try
+        {
+            var ausenciaActiva = await GestionAccesosService.GetAusenciaAbiertaByTrabajadorId(selectedTrabajadorID.Value);
+
+            if (ausenciaActiva?.Data != null)
+            {
+                ToastService.MostrarInfo(TranslationService["AusenciaYaActiva"]);
+                return;
+            }
+
+            var tiposList = await GestionAccesosService.GetAllTiposAusencia();
+            var tiposAusencia = tiposList?.Data?.ToList();
+
+            if (tiposAusencia == null)
+                return;
+
+            var dropDownList = tiposAusencia.Select(t => new DropDownWrapper
+            {
+                ID = t.IdTipoAusencia,
+                Nombre = t.Descripcion
+            }).ToList();
+
+            ficharAusenciaPopUp?.AbrirPopup(dropDownList, selectedTrabajadorID.Value);
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Ocurrió un error al gestionar la ausencia: {ex.Message}");
+        }
+    }
+
+    private async Task GuardarAusencia(AusenciasTrabajadorDTO ausencia)
+    {
+        await CargarTrabajadores();
+
+        if (!selectedTrabajadorID.HasValue)
+        {
+            ToastService.MostrarError(TranslationService["DebeSeleccionarTrabajador"]);
+            return;
+        }
+
+        try
+        {
+            var resultadoFichajeAbierto = await GestionAccesosService.GetFichajeAbiertoByTrabajadorId(selectedTrabajadorID.Value);
+
+            if (resultadoFichajeAbierto.Data != null)
+            {
+                var fichajeAbierto = resultadoFichajeAbierto.Data;
+                fichajeAbierto.HoraSalida = DateTime.Now;
+
+                var resultadoCerrarFichaje = await GestionAccesosService.TratarFichaje(fichajeAbierto);
+
+                if (resultadoCerrarFichaje.Errors.Any())
+                {
+                    ToastService.MostrarError($"Error al cerrar el fichaje: {resultadoCerrarFichaje.Errors.First()}");
+                    return;
+                }
+            }
+
+            var resultadoAbrir = await GestionAccesosService.GestionarAusencia(
+                selectedTrabajadorID.Value,
+                "abrir",
+                ausencia.Motivo,
+                ausencia.Observaciones);
+
+            if (resultadoAbrir.Errors.Any())
+            {
+                ToastService.MostrarError($"Error al registrar la ausencia: {resultadoAbrir.Errors.First()}");
+                return;
+            }
+
+            ToastService.MostrarOk(TranslationService["AusenciaRegistrada"]);
+            LimpiarFormulario();
+            Navigator.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Ocurrió un error: {ex.Message}");
+        }
+    }
+
+    private async Task<bool> ResolverTrabajadorSeleccionado()
+    {
+        if (selectedTrabajadorID.HasValue)
+            return true;
+
+        if (string.IsNullOrWhiteSpace(Text))
+        {
+            ToastService.MostrarError(TranslationService["DebeIntroducirCodigo"]);
+            return false;
+        }
+
+        if (!int.TryParse(Text, out var trabajadorId))
+        {
+            ToastService.MostrarError(TranslationService["IdNoValido"]);
+            return false;
+        }
+
+        var resultado = await GestionAccesosService.GetTrabajadorETTById(trabajadorId);
+
+        if (resultado?.Data == null || resultado.Data.Borrado)
+        {
+            ToastService.MostrarError(TranslationService["TrabajadorNoDisponible"]);
+            return false;
+        }
+
+        selectedTrabajadorID = resultado.Data.IdTrabajador;
+        return true;
+    }
+
+    private string? _nombreConfirmado;
+
+    private void PressKey(string digit)
+    {
+        Text += digit;
+        EvaluarTexto();
+    }
+
+    private void DeleteLast()
+    {
+        if (Text.Length > 0)
+            Text = Text[..^1];
+        EvaluarTexto();
+    }
+
+    private void ClearAll()
+    {
+        Text = string.Empty;
+        EvaluarTexto();
+    }
+
+    private void EvaluarTexto()
+    {
+        if (int.TryParse(Text, out var trabajadorId))
+        {
+            selectedTrabajadorID = trabajadorId;
+            var trabajador = trabajadores.FirstOrDefault(t => t.ID == trabajadorId);
+            _nombreConfirmado = trabajador != null
+                ? (trabajador.Nombre.Contains("-") ? trabajador.Nombre.Split("-")[1].Trim() : trabajador.Nombre)
+                : null;
+            _ = CargarEstadoFichaje(trabajadorId);
+        }
+        else
+        {
+            selectedTrabajadorID = null;
+            _nombreConfirmado = null;
+            _estado = null;
+        }
+    }
+
+    private async Task CargarEstadoFichaje(int trabajadorId)
+    {
+        var result = await GestionAccesosService.GetEstadoFichajeByTrabajadorId(trabajadorId);
+        _estado = result?.Data;
+
+        var ausenciaResult = await GestionAccesosService.GetAusenciaAbiertaByTrabajadorId(trabajadorId);
+        _ausenciaAbierta = ausenciaResult?.Data;
+
+        StateHasChanged();
+    }
+
+    private async Task ReanudarFichaje()
+    {
+        if (!await ResolverTrabajadorSeleccionado()) return;
+        _isLoading = true;
+        try
+        {
+            var result = await GestionAccesosService.GestionarPausaFichaje(selectedTrabajadorID!.Value, "reanudar");
+            if (result.Errors.Any()) { ToastService.MostrarError(result.Errors.First()); return; }
+            ToastService.MostrarOk(TranslationService["Reanudar"]);
+            await CargarEstadoFichaje(selectedTrabajadorID.Value);
+        }
+        finally { _isLoading = false; }
+    }
+
+    private async Task VolverAlTurno()
+    {
+        if (!await ResolverTrabajadorSeleccionado()) return;
+        _isLoading = true;
+        try
+        {
+            var resultCerrar = await GestionAccesosService.GestionarAusencia(
+                selectedTrabajadorID!.Value, "cerrar", null, null);
+
+            if (resultCerrar.Errors.Any())
+            {
+                ToastService.MostrarError($"Error al cerrar la ausencia: {resultCerrar.Errors.First()}");
+                return;
+            }
+
+            var resultFichaje = await GestionAccesosService.FicharTrabajador(selectedTrabajadorID!.Value);
+
+            if (resultFichaje.Errors.Any())
+            {
+                ToastService.MostrarError($"Error al registrar la entrada: {resultFichaje.Errors.First()}");
+                return;
+            }
+
+            var nombre = _nombreConfirmado ?? $"#{selectedTrabajadorID}";
+            ToastService.MostrarOk($"{TranslationService["VolverAlTurno"]} — {nombre} 👋");
+            LimpiarFormulario();
+            Navigator.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Ocurrió un error: {ex.Message}");
+        }
+        finally { _isLoading = false; }
+    }
+
+    private void LimpiarFormulario()
+    {
+        selectedTrabajadorID = null;
+        Text = string.Empty;
+        _estado = null;
+        _ausenciaAbierta = null;
+        _nombreConfirmado = null;
+    }
+}

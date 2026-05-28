@@ -1,0 +1,48 @@
+@inject NavigationManager Nav
+
+<div class="sinacceso-wrapper">
+    <div class="sinacceso-card">
+        <div class="sinacceso-icon">
+            <i class="bi bi-lock"></i>
+        </div>
+        <h2>Acceso restringido</h2>
+        <p class="sinacceso-desc">No tienes permiso para acceder a esta sección.</p>
+
+        <div class="sinacceso-contact">
+            <i class="bi bi-person-lines-fill"></i>
+            <span>
+                Para gestionar este apartado, contacta con
+                <strong>@_contacto</strong>.
+            </span>
+        </div>
+
+        <a href="/" class="sinacceso-back">
+            <i class="bi bi-arrow-left"></i>
+            Volver al inicio
+        </a>
+    </div>
+</div>
+
+@code {
+    private string _contacto = "el Administrador";
+
+    protected override void OnInitialized()
+    {
+        var url = Nav.Uri.ToLower();
+
+        _contacto = url switch
+        {
+            var u when u.Contains("gestionfichajes")        => "el Administrador o el equipo de RRHH",
+            var u when u.Contains("gestionausencias")       => "el Administrador o el equipo de RRHH",
+            var u when u.Contains("gestiontiposausencia")   => "el Administrador o el equipo de RRHH",
+            var u when u.Contains("gestiontrabajadores")    => "el Administrador o el equipo de RRHH",
+            var u when u.Contains("gestionett")             => "el Administrador o el equipo de RRHH",
+            var u when u.Contains("gestioncontratos")       => "el Administrador o el equipo de RRHH",
+            var u when u.Contains("gestionparametros")      => "el Administrador",
+            var u when u.Contains("dashboardvisitas")       => "el Administrador o el perfil de Recepción/Visitas",
+            var u when u.Contains("gestionpersonas")        => "el Administrador o el perfil de Recepción/Visitas",
+            var u when u.Contains("gestiongeneral")         => "el Administrador o el equipo de RRHH",
+            _                                               => "el Administrador del sistema"
+        };
+    }
+}

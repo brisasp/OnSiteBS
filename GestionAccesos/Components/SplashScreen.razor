@@ -1,0 +1,14 @@
+﻿@if (Visible)
+{
+    <div class="splash-screen">
+        <div class="custom-spinner"></div>
+        <div class="splash-screen-caption">@Title</div>
+        <div class="splash-screen-text">@Subtitle</div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; } = true;
+    [Parameter] public string Title { get; set; } = "Gestión de accesos";
+    [Parameter] public string Subtitle { get; set; } = "Cargando...";
+}

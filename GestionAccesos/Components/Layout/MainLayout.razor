@@ -1,0 +1,146 @@
+@inherits LayoutComponentBase
+@inject IGestionAccesosService GestionAccesosService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+@if (_alertasContrato.Any())
+{
+    <div class="contratos-alert-banner">
+        <div class="contratos-alert-inner">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>
+                <strong>@_alertasContrato.Count contrato@(_alertasContrato.Count == 1 ? "" : "s") próximo@(_alertasContrato.Count == 1 ? "" : "s") a vencer:</strong>
+                @string.Join(", ", _alertasContrato.Select(a => $"{a.Nombre} ({a.DiasRestantes}d)"))
+            </span>
+            <button class="contratos-alert-close" @onclick="() => _alertasContrato.Clear()">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    </div>
+}
+
+<div class="app-shell @(IsOpen ? "sidebar-open" : "sidebar-closed")">
+    <header class="navbar header-navbar px-3">
+        <div class="contenedor-icono-hamburger">
+            <button class="navbar-toggler" @onclick="ToggleDrawer" type="button">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+        </div>
+
+        <div class="header-inner">
+            <div class="header-left">
+                <img src="Images/logo-blanco.svg" alt="Logo" class="logo-header" />
+            </div>
+
+            <div class="header-right">
+                <NavLink href="/" class="title header-link">
+                    Gestión accesos
+                </NavLink>
+            </div>
+        </div>
+    </header>
+
+    @if (IsOpen)
+    {
+        <div class="mobile-shade" @onclick="ToggleDrawer"></div>
+    }
+
+    <aside class="sidebar">
+        <nav class="sidebar-nav">
+            @if (_isAdmin || _isRRHH || _isVisitas)
+            {
+                <NavItem Href="GestionGeneralEtt" Icon="bi-house" Text="Home" />
+
+                @if (_isAdmin || _isRRHH)
+                {
+                    <NavItem Href="GestionFichajes" Icon="bi-calendar3" Text="Fichajes" />
+                    <NavItem Href="GestionAusencias" Icon="bi-calendar4-week" Text="Ausencias" />
+                    <NavItem Href="GestionTiposAusencia" Icon="bi-list-ol" Text="Tipos de ausencias" />
+                    <NavItem Href="GestionTrabajadores" Icon="bi-person" Text="Trabajadores" />
+                    <NavItem Href="GestionEtt" Icon="bi-people" Text="ETTs" />
+                    <NavItem Href="GestionContratos" Icon="bi-folder" Text="Contratos" />
+                }
+
+                @if (_isAdmin)
+                {
+                    <NavItem Href="GestionParametrosWorker" Icon="bi-gear-wide-connected" Text="Parámetros Worker" />
+                }
+
+                @if (_isAdmin || _isVisitas)
+                {
+                    <NavItem Href="GestionPersonasAVisitar" Icon="bi-person-check" Text="Personas a visitar" />
+                    <NavItem Href="DashboardVisitas" Icon="bi-graph-up" Text="Dashboard Visitas" />
+                }
+
+                <div class="sidebar-separator"></div>
+                <NavItem Href="/authentication/logout" Icon="bi-box-arrow-right" Text="Cerrar sesión" />
+            }
+        </nav>
+    </aside>
+
+    <main class="app-main">
+        @Body
+    </main>
+</div>
+
+<Toast />
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private bool IsOpen = true;
+    private bool _isAdmin;
+    private bool _isRRHH;
+    private bool _isVisitas;
+    private List<(string Nombre, int DiasRestantes)> _alertasContrato = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var width = await JS.InvokeAsync<int>("eval", "window.innerWidth");
+            if (width <= 1024)
+            {
+                IsOpen = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _isAdmin   = user.IsInRole("Administrador");
+        _isRRHH    = user.IsInRole("RRHH");
+        _isVisitas = user.IsInRole("Visitas");
+
+        try
+        {
+            var trabajadores = await GestionAccesosService.GetAllTrabajadores();
+            if (trabajadores?.Data != null)
+            {
+                var hoy = DateTime.Today;
+                _alertasContrato = trabajadores.Data
+                    .Where(t => !t.Borrado && t.FechaMaximaTemporalidad.HasValue)
+                    .Select(t => (
+                        Nombre: $"{t.Nombre}",
+                        DiasRestantes: (t.FechaMaximaTemporalidad!.Value.Date - hoy).Days
+                    ))
+                    .Where(x => x.DiasRestantes >= 0 && x.DiasRestantes <= 30)
+                    .OrderBy(x => x.DiasRestantes)
+                    .ToList();
+            }
+        }
+        catch { }
+    }
+
+    private void ToggleDrawer()
+    {
+        IsOpen = !IsOpen;
+    }
+}

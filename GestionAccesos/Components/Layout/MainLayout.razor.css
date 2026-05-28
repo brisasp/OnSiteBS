@@ -1,0 +1,327 @@
+.contratos-alert-banner {
+    background: #fef3c7;
+    border-bottom: 1px solid #fcd34d;
+    padding: .55rem 1.25rem;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+}
+
+.contratos-alert-inner {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    font-size: .85rem;
+    color: #92400e;
+}
+
+.contratos-alert-inner i.bi-exclamation-triangle-fill {
+    font-size: 1rem;
+    flex-shrink: 0;
+    color: #d97706;
+}
+
+.contratos-alert-inner span {
+    flex: 1;
+}
+
+.contratos-alert-close {
+    background: none;
+    border: none;
+    color: #92400e;
+    cursor: pointer;
+    padding: .2rem .4rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.contratos-alert-close:hover {
+    background: rgba(0,0,0,.08);
+}
+
+.app-shell {
+    min-height: 100vh;
+    background: #f4f7fb;
+}
+
+/* HEADER */
+
+.header-navbar {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 1000;
+    height: 3.5rem;
+    background-color: #a91c32;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .25);
+    display: flex;
+    align-items: center;
+    color: #fff;
+    padding: 0 !important;
+}
+
+.header-inner {
+    width: 100%;
+    height: 100%;
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.header-left,
+.header-right {
+    display: flex;
+    align-items: center;
+}
+
+.logo-header {
+    max-height: 40px;
+    display: block;
+}
+
+.header-link,
+.header-link:link,
+.header-link:visited,
+.header-link:hover,
+.header-link:active {
+    color: #fff !important;
+    text-decoration: none !important;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: .3px;
+}
+
+    .header-link:hover {
+        opacity: .85;
+    }
+
+/* HAMBURGER */
+
+.contenedor-icono-hamburger {
+    width: 65px;
+    min-width: 65px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(255,255,255,.15);
+}
+
+.navbar-toggler {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+}
+
+    .navbar-toggler:hover {
+        background: rgba(255,255,255,.12);
+    }
+
+.navbar-toggler-icon {
+    width: 22px;
+    height: 22px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 22px;
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath stroke='white' stroke-width='2.4' stroke-linecap='round' d='M5 8h22M5 16h22M5 24h22'/%3E%3C/svg%3E");
+}
+
+/* SIDEBAR */
+
+.sidebar {
+    position: fixed;
+    top: 3.5rem;
+    left: 0;
+    bottom: 0;
+    width: 225px;
+    background: #f3f4f6;
+    overflow: hidden;
+    transition: width .25s ease, transform .25s ease;
+    border-right: 1px solid #e5e7eb;
+}
+
+.sidebar-closed .sidebar {
+    width: 65px;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 6px;
+}
+
+.nav-item {
+    margin-bottom: 6px;
+}
+
+.sidebar-nav ::deep .nav-link {
+    height: 44px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 10px;
+    color: #374151 !important;
+    font-weight: 600;
+    text-decoration: none !important;
+    transition: all .2s ease;
+}
+
+    .sidebar-nav ::deep .nav-link:hover,
+    .sidebar-nav ::deep .nav-link.active {
+        background: #fff;
+        color: #a91c32 !important;
+    }
+
+    .sidebar-nav ::deep .nav-link.active {
+        box-shadow: 0 6px 14px rgba(0,0,0,.08);
+    }
+
+.contenedor-icono-sidebar {
+    width: 22px;
+    min-width: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ICONOS MÁS FUERTES */
+.icono-sidebar {
+    font-size: 1.4rem; /* más grandes */
+    font-weight: 700; /* más “negrita” */
+    line-height: 1;
+}
+
+/* En estado colapsado → aún más protagonismo */
+.sidebar-closed .icono-sidebar {
+    font-size: 1.5rem;
+}
+
+/* Mejora visual del contenedor */
+.contenedor-icono-sidebar {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+}
+
+.nav-text {
+    white-space: nowrap;
+}
+
+.sidebar-closed ::deep .nav-label,
+.sidebar-closed ::deep .nav-text {
+    display: none !important;
+}
+
+.sidebar-closed ::deep .nav-link {
+    justify-content: center !important;
+    padding: 0 !important;
+    gap: 0 !important;
+}
+
+.sidebar-separator {
+    height: 1px;
+    background: #d1d5db;
+    margin: 10px 6px;
+}
+
+/* MAIN */
+
+.app-main {
+    padding: 5rem 1.5rem 6rem;
+    margin-left: 225px;
+    transition: margin-left .25s ease;
+    min-height: 100vh;
+    overflow-y: visible;
+}
+
+.sidebar-closed .app-main {
+    margin-left: 65px;
+}
+
+/* TABLET */
+
+@media (max-width: 1024px) and (min-width: 769px) {
+    .sidebar {
+        width: 65px;
+    }
+
+    .sidebar-open .sidebar {
+        width: 225px;
+    }
+
+    .app-main {
+        margin-left: 65px;
+        padding: 5rem 1rem 4rem;
+    }
+
+    .sidebar-open .app-main {
+        margin-left: 225px;
+    }
+
+    .sidebar-closed .sidebar {
+        width: 65px;
+    }
+
+    .sidebar-closed .app-main {
+        margin-left: 65px;
+    }
+}
+
+/* MOBILE */
+
+.mobile-shade {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+        width: 225px;
+    }
+
+    .sidebar-open .sidebar {
+        transform: translateX(0);
+    }
+
+    .sidebar-closed .sidebar {
+        width: 225px;
+        transform: translateX(-100%);
+    }
+
+    .app-main,
+    .sidebar-closed .app-main {
+        margin-left: 0;
+        padding: 4.5rem 1rem 1rem;
+    }
+
+    .mobile-shade {
+        display: block;
+        position: fixed;
+        inset: 3.5rem 0 0 0;
+        background: rgba(0,0,0,.4);
+        z-index: 850;
+    }
+}
+
+/* ERROR UI */
+
+#blazor-error-ui {
+    background: #fff3cd;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: .6rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 2000;
+}

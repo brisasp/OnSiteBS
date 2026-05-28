@@ -1,0 +1,435 @@
+﻿@page "/DashboardVisitas"
+@attribute [Authorize(Roles = "Administrador,Visitas")]
+@implements IDisposable
+
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+@inject ExcelExportCoordinator ExcelExporter
+@inject PdfExporter PdfExporter
+
+<PageTitle>Dashboard Visitas</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando visitas...</span>
+        </div>
+    </div>
+}
+
+<div class="visitas-page">
+    <section class="visitas-hero">
+        <div>
+            @* <span class="visitas-eyebrow">Control de accesos</span> *@
+            <h1>Dashboard Visitas</h1>
+            <p>Consulta, filtra y exporta el histórico de visitas registradas.</p>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat-card">
+                <span>Total</span>
+                <strong>@Data.Count</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>Activas</span>
+                <strong>@Data.Count(v => v.Estado == "Checked-in")</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>Finalizadas</span>
+                <strong>@Data.Count(v => v.Estado == "Checked-out")</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="visitas-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar visitante, empresa, anfitrión..."
+                   @bind="GridSearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="toolbar-dates">
+            <label>
+                Desde
+                <input type="date" @bind="DateTimeStart" />
+            </label>
+
+            <label>
+                Hasta
+                <input type="date" @bind="DateTimeEnd" />
+            </label>
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-primary" @onclick="CargarGrid">
+                <i class="bi bi-funnel"></i>
+                Filtrar
+            </button>
+
+            <button type="button" class="btn-ui btn-soft" @onclick="CargarVisitasHoy">
+                Hoy
+            </button>
+
+            <button type="button" class="btn-ui btn-soft" @onclick="VerVisitasActivas">
+                Activas
+            </button>
+
+            <button type="button" class="btn-ui btn-soft" @onclick="CargarGrid" title="Actualizar datos">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+
+            <div class="export-dropdown @(_exportMenuAbierto ? "open" : "")">
+                <button type="button" class="btn-ui btn-export" @onclick="ToggleExportMenu">
+                    <i class="bi bi-download"></i>
+                    Exportar
+                    <i class="bi bi-chevron-down chev"></i>
+                </button>
+                <div class="export-menu">
+                    <button type="button" @onclick="ExportarVisitas">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        Excel (.xlsx)
+                    </button>
+                    <button type="button" @onclick="ExportarVisitasPdf">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                        PDF (.pdf)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="visitas-table-card">
+        <div class="table-card-header">
+            <div>
+                <h2>Listado de visitas</h2>
+                <p>@VisitasFiltradas.Count() @(VisitasFiltradas.Count() == 1 ? "visita encontrada" : "visitas encontradas")</p>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="visitas-table">
+                <thead>
+                    <tr>
+                        <th>Estado</th>
+                        <th>Checked-in</th>
+                        <th>Checked-out</th>
+                        <th>Visitante</th>
+                        <th>Empresa</th>
+                        <th>Anfitrión</th>
+                        <th>Teléfono</th>
+                        <th>Acuerdo</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @if (!VisitasFiltradas.Any())
+                    {
+                        <tr>
+                            <td colspan="8">
+                                <div class="empty-state">
+                                    <i class="bi bi-calendar-x"></i>
+                                    <strong>No hay visitas para mostrar</strong>
+                                    <span>Prueba cambiando el rango de fechas o revisando las visitas activas.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var visita in VisitasFiltradas)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="estado-badge @GetEstadoClass(visita.Estado)">
+                                        @visita.Estado
+                                    </span>
+                                </td>
+                                <td>@visita.FechaEntrada.ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@(visita.FechaSalida.HasValue ? visita.FechaSalida.Value.ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                                <td class="strong-cell">@visita.NombreCompletoVisitante</td>
+                                <td>@visita.EmpresaVisitante</td>
+                                <td>@visita.NombreCompletoAnfitrion</td>
+                                <td>@visita.TelefonoVisitante</td>
+                                <td>
+                                    <div style="display:flex;gap:.4rem;align-items:center">
+                                        <button type="button"
+                                                class="btn-table"
+                                                @onclick="() => DescargarAcuerdo(visita.IdVisitante)">
+                                            <i class="bi bi-paperclip"></i>
+                                            Firmado
+                                        </button>
+                                        <button type="button"
+                                                class="btn-table btn-table--danger"
+                                                title="Resetear acuerdo firmado"
+                                                @onclick="() => AbrirModalResetAcuerdo(visita.IdVisitante, visita.NombreCompletoVisitante)">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@if (_modalResetVisible)
+{
+    <div class="modal-backdrop-custom">
+        <div class="modal-card-custom">
+            <div class="modal-header-custom">
+                <i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:1.5rem"></i>
+                <h5>Resetear acuerdo firmado</h5>
+            </div>
+            <div class="modal-body-custom">
+                <p>
+                    ¿Seguro que quieres eliminar el acuerdo firmado de <strong>@_resetNombreVisitante</strong>?
+                </p>
+                <p class="text-muted" style="font-size:.875rem">
+                    La próxima vez que visite las instalaciones tendrá que firmar de nuevo con el documento actualizado.
+                </p>
+            </div>
+            <div class="modal-footer-custom">
+                <button class="btn-secondary-action" @onclick="CerrarModalResetAcuerdo">Cancelar</button>
+                <button class="btn-danger-action" @onclick="ConfirmarResetAcuerdo">
+                    <i class="bi bi-arrow-clockwise"></i> Resetear
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isLoading;
+    private bool _exportMenuAbierto;
+    private ObservableCollection<VisitaDTO> Data = new();
+
+    // Reset acuerdo modal
+    private bool _modalResetVisible = false;
+    private int _resetIdVisitante = 0;
+    private string _resetNombreVisitante = string.Empty;
+
+    private void AbrirModalResetAcuerdo(int idVisitante, string nombre)
+    {
+        _resetIdVisitante = idVisitante;
+        _resetNombreVisitante = nombre;
+        _modalResetVisible = true;
+    }
+
+    private void CerrarModalResetAcuerdo()
+    {
+        _modalResetVisible = false;
+        _resetIdVisitante = 0;
+        _resetNombreVisitante = string.Empty;
+    }
+
+    private async Task ConfirmarResetAcuerdo()
+    {
+        var ok = await GestionAccesosService.EliminarAcuerdoByIdVisitante(_resetIdVisitante);
+        CerrarModalResetAcuerdo();
+
+        if (ok)
+            ToastService.MostrarOk("Acuerdo eliminado. El visitante tendrá que volver a firmarlo.");
+        else
+            ToastService.MostrarError("No se encontró ningún acuerdo firmado para este visitante.");
+    }
+    private System.Threading.Timer? _refreshTimer;
+
+    private DateTime DateTimeStart { get; set; } = DateTime.Today;
+    private DateTime DateTimeEnd { get; set; } = DateTime.Today;
+    private string GridSearchText = string.Empty;
+
+    private IEnumerable<VisitaDTO> VisitasFiltradas
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(GridSearchText))
+                return Data;
+
+            var text = GridSearchText.Trim().ToLower();
+
+            return Data.Where(v =>
+                $"{v.Estado} {v.NombreCompletoVisitante} {v.EmpresaVisitante} {v.NombreCompletoAnfitrion} {v.TelefonoVisitante}"
+                .ToLower()
+                .Contains(text));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarGrid();
+
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                var idsAntes = Data.Select(v => v.IdVisita).ToHashSet();
+                await CargarGrid();
+                var nuevas = Data.Where(v => !idsAntes.Contains(v.IdVisita)).ToList();
+                foreach (var nueva in nuevas)
+                {
+                    ToastService.MostrarInfo($"🧑‍💼 {nueva.NombreCompletoVisitante} ha llegado a recepción");
+                }
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+
+    public async Task CargarGrid()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.GetVisitasByDateRange(DateTimeStart, DateTimeEnd);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            Data = new ObservableCollection<VisitaDTO>(result.Data);
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar visitas: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarVisitasHoy()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.GetVisitasHoy();
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            Data = new ObservableCollection<VisitaDTO>(result.Data);
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar visitas de hoy: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task VerVisitasActivas()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.GetVisitasAbiertas();
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            Data = new ObservableCollection<VisitaDTO>(result.Data);
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar visitas activas: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task DescargarAcuerdo(int idVisitante)
+    {
+        var acuerdoVisitante = await GestionAccesosService.GetAcuerdoByIdVisitante(idVisitante);
+
+        if (acuerdoVisitante.Errors.Any())
+        {
+            ToastService.MostrarError(string.Join(", ", acuerdoVisitante.Errors));
+            return;
+        }
+
+        var acuerdo = acuerdoVisitante.Data;
+
+        if (acuerdo?.Archivo != null)
+            await PdfExporter.DescargarAcuerdoFirmado(acuerdo.Archivo);
+        else
+            ToastService.MostrarError("No se encontró el acuerdo firmado para este visitante.");
+    }
+
+    private void ToggleExportMenu() => _exportMenuAbierto = !_exportMenuAbierto;
+
+    private async Task ExportarVisitas()
+    {
+        _exportMenuAbierto = false;
+        _isLoading = true;
+
+        try
+        {
+            await ExcelExporter.ExportarVisitas(VisitasFiltradas.ToList());
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al exportar visitas: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ExportarVisitasPdf()
+    {
+        _exportMenuAbierto = false;
+        _isLoading = true;
+
+        try
+        {
+            await PdfExporter.ExportarVisitasPdf(VisitasFiltradas.ToList());
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al exportar PDF: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetEstadoClass(string? estado)
+    {
+        return estado?.ToLower() switch
+        {
+            "checked-in" => "estado-activa",
+            "checked-out" => "estado-cerrada",
+            _ => "estado-default"
+        };
+    }
+}

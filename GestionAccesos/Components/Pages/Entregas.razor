@@ -1,0 +1,283 @@
+@page "/Entregas"
+@layout NoMenuLayout
+@using MimeKit
+
+@inject IToastService ToastService
+@inject IJSRuntime jsRuntime
+@inject IGestionAccesosService GestionAccesosService
+@inject AppNavigator Navigator
+@inject ILocalStorageService LocalStorage
+@inject TranslationService TranslationService
+@inject EmailService EmailService
+
+<PageTitle>@TranslationService["Entrega"]</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <div class="loading-box">
+            <div class="spinner-border text-danger" role="status"></div>
+            <div class="mt-3">@TranslationService["Cargando"]</div>
+        </div>
+    </div>
+}
+
+<div class="acceso-visitas-page">
+    <div class="acceso-visitas-box">
+        <h1 class="acceso-titulo">@TranslationService["ParaQuienEsEstePaquete"]</h1>
+
+        <div class="acceso-buscador">
+            <input class="acceso-input"
+                   placeholder="@TranslationService["ParaQuienEsEstePaquete"]"
+                   @bind="Text"
+                   @bind:event="oninput" />
+
+            @if (personasFiltradas.Any())
+            {
+                <div class="visitantes-dropdown">
+                    @foreach (var persona in personasFiltradas)
+                    {
+                        <button type="button"
+                                class="visitante-item"
+                                @onclick="() => SeleccionarPersona(persona)">
+                            <img src="@ImagenHelper.ObtenerFotoBase64(persona.Foto)"
+                                 alt="Foto"
+                                 class="visitante-foto" />
+                            <div class="visitante-info">
+                                <div class="visitante-nombre">@persona.NombreCompleto</div>
+                                <div class="visitante-correo">@persona.Correo</div>
+                            </div>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+
+        <button type="button" class="btn-desconocido" @onclick="SeleccionarDesconocido">
+            <i class="bi bi-person-question-fill"></i>
+            @TranslationService["DestinatarioNoEnLista"]
+        </button>
+
+        <div class="acciones">
+            <button class="kiosk-btn" @onclick="HandleContinue">
+                @TranslationService["Continuar"]
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _isLoading;
+    private List<PersonasAvisitarDTO> personasAVisitar { get; set; } = new();
+    private PersonasAvisitarDTO? personaSeleccionada;
+    private string Text { get; set; } = string.Empty;
+
+    private IEnumerable<PersonasAvisitarDTO> personasFiltradas =>
+        string.IsNullOrWhiteSpace(Text)
+            ? Enumerable.Empty<PersonasAvisitarDTO>()
+            : personasAVisitar
+                .Where(p =>
+                    (!string.IsNullOrWhiteSpace(p.NombreCompleto) &&
+                     p.NombreCompleto.Contains(Text, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(p.Correo) &&
+                     p.Correo.Contains(Text, StringComparison.OrdinalIgnoreCase)))
+                .Take(8);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+        await CargarVisitados();
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task CargarVisitados()
+    {
+        var result = await GestionAccesosService.GetAllPersonasAVisitar();
+
+        if (result?.Data != null && result.Data.Any())
+        {
+            personasAVisitar = result.Data;
+        }
+        else
+        {
+            personasAVisitar = new List<PersonasAvisitarDTO>();
+            ToastService.MostrarError(TranslationService["NoSeEncontraronPersonasParaEntregarElPaquete"]);
+        }
+    }
+
+    private async Task SeleccionarPersona(PersonasAvisitarDTO selectedPersona)
+    {
+        personaSeleccionada = selectedPersona;
+        Text = selectedPersona.NombreCompleto ?? string.Empty;
+
+        await LocalStorage.RemoveItemAsync("personaAEntregar");
+        await LocalStorage.SetItemAsync("personaAEntregar", selectedPersona);
+
+        _ = EnviarNotificacionPaquete(selectedPersona);
+
+        var nombre = Uri.EscapeDataString(selectedPersona.NombreCompleto ?? string.Empty);
+        Navigator.NavigateTo($"/ConfirmacionPaquete?nombre={nombre}");
+    }
+
+    private void SeleccionarDesconocido()
+    {
+        _ = EnviarAvisoSinDestinatario();
+        Navigator.NavigateTo("/ConfirmacionPaquete?nombre=Destinatario%20desconocido&sinAsignar=true");
+    }
+
+    private async Task EnviarAvisoSinDestinatario()
+    {
+        try
+        {
+            var hora = DateTime.Now.ToString("HH:mm");
+            var fecha = DateTime.Now.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("es-ES"));
+
+            var html = $"""
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-family:sans-serif;max-width:520px;margin:0 auto;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff">
+                  <tr>
+                    <td style="background:#a91c32;padding:16px 20px">
+                      <table cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td width="48" style="vertical-align:middle">
+                            <div style="background:rgba(255,255,255,.18);border-radius:10px;width:42px;height:42px;text-align:center;line-height:42px;font-size:22px">📦</div>
+                          </td>
+                          <td style="padding-left:12px;vertical-align:middle">
+                            <div style="color:#ffffff;font-weight:700;font-size:1rem;margin:0">Paquete sin destinatario asignado</div>
+                            <div style="color:rgba(255,255,255,.75);font-size:.8rem;margin-top:3px">Recepción · hoy a las {hora}</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:20px">
+                      <p style="color:#1e293b;margin:0 0 16px;font-size:.95rem">Se ha registrado la llegada de un paquete en recepción pero el destinatario <strong>no estaba en la lista</strong>. Es necesario identificarlo manualmente.</p>
+                      <table cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border-radius:10px;margin-bottom:16px">
+                        <tr>
+                          <td style="padding:12px 16px;width:50%;vertical-align:top">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Fecha de llegada</div>
+                            <div style="color:#1e293b;font-weight:600;font-size:.92rem">{fecha}</div>
+                          </td>
+                          <td style="padding:12px 16px;width:50%;vertical-align:top">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Hora</div>
+                            <div style="color:#1e293b;font-weight:600;font-size:.92rem">{hora}</div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colspan="2" style="padding:12px 16px;border-top:1px solid #e2e8f0">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Estado</div>
+                            <span style="display:inline-block;background:#fef9c3;color:#854d0e;border-radius:999px;padding:3px 10px;font-size:.75rem;font-weight:600">⚠ Pendiente de identificar</span>
+                          </td>
+                        </tr>
+                      </table>
+                      <table cellpadding="0" cellspacing="0" width="100%" style="border-top:1px solid #f1f5f9;padding-top:10px">
+                        <tr>
+                          <td style="color:#94a3b8;font-size:.72rem;padding-top:10px">· Gestión de Accesos</td>
+                          <td style="color:#94a3b8;font-size:.72rem;text-align:right;padding-top:10px">Notificación automática</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                """;
+
+            await EmailService.SendEmailToAdminAsync("📦 Paquete sin destinatario — acción requerida", html);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR EMAIL SIN DESTINATARIO: {ex.Message}");
+        }
+    }
+
+    private async Task HandleContinue()
+    {
+        if (personaSeleccionada == null)
+        {
+            ToastService.MostrarError(TranslationService["NoSeEncontraronPersonasParaEntregarElPaquete"]);
+            return;
+        }
+
+        _ = EnviarNotificacionPaquete(personaSeleccionada);
+
+        var nombre = Uri.EscapeDataString(personaSeleccionada.NombreCompleto ?? string.Empty);
+        Navigator.NavigateTo($"/ConfirmacionPaquete?nombre={nombre}");
+    }
+
+    private async Task EnviarNotificacionPaquete(PersonasAvisitarDTO persona)
+    {
+        if (string.IsNullOrWhiteSpace(persona.Correo)) return;
+
+        try
+        {
+            var hora = DateTime.Now.ToString("HH:mm");
+            var fecha = DateTime.Now.ToString("dd/MM/yyyy");
+
+            var primerNombre = (persona.NombreCompleto ?? string.Empty).Split(' ')[0];
+            var html = $"""
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-family:sans-serif;max-width:520px;margin:0 auto;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#ffffff">
+                  <tr>
+                    <td style="background:#a91c32;padding:16px 20px">
+                      <table cellpadding="0" cellspacing="0" width="100%">
+                        <tr>
+                          <td width="48" style="vertical-align:middle">
+                            <div style="background:rgba(255,255,255,.18);border-radius:10px;width:42px;height:42px;text-align:center;line-height:42px;font-size:22px">📦</div>
+                          </td>
+                          <td style="padding-left:12px;vertical-align:middle">
+                            <div style="color:#ffffff;font-weight:700;font-size:1rem;margin:0">Tienes un paquete esperándote</div>
+                            <div style="color:rgba(255,255,255,.75);font-size:.8rem;margin-top:3px">Recepción · hoy a las {hora}</div>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:20px">
+                      <p style="color:#1e293b;margin:0 0 16px;font-size:.95rem">Hola <strong>{primerNombre}</strong>, ha llegado un paquete a recepción para ti. Puedes pasarte a recogerlo cuando quieras.</p>
+                      <table cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border-radius:10px;margin-bottom:16px">
+                        <tr>
+                          <td style="padding:12px 16px;width:50%;vertical-align:top">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Fecha de llegada</div>
+                            <div style="color:#1e293b;font-weight:600;font-size:.92rem">{DateTime.Now.ToString("d MMMM yyyy", new System.Globalization.CultureInfo("es-ES"))}</div>
+                          </td>
+                          <td style="padding:12px 16px;width:50%;vertical-align:top">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Hora</div>
+                            <div style="color:#1e293b;font-weight:600;font-size:.92rem">{hora}</div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:12px 16px;width:50%;vertical-align:top;border-top:1px solid #e2e8f0">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Ubicación</div>
+                            <div style="color:#1e293b;font-weight:600;font-size:.92rem">Recepción</div>
+                          </td>
+                          <td style="padding:12px 16px;width:50%;vertical-align:top;border-top:1px solid #e2e8f0">
+                            <div style="color:#94a3b8;font-size:.72rem;margin-bottom:3px">Estado</div>
+                            <span style="display:inline-block;background:#dcfce7;color:#166534;border-radius:999px;padding:3px 10px;font-size:.75rem;font-weight:600">✓ Entregado en recepción</span>
+                          </td>
+                        </tr>
+                      </table>
+                      <table cellpadding="0" cellspacing="0" width="100%" style="border-top:1px solid #f1f5f9;padding-top:10px">
+                        <tr>
+                          <td style="color:#94a3b8;font-size:.72rem;padding-top:10px">· Gestión de Accesos</td>
+                          <td style="color:#94a3b8;font-size:.72rem;text-align:right;padding-top:10px">Notificación automática</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                """;
+
+            await EmailService.SendEmailAsync(persona.Correo, "📦 Tienes un paquete en recepción", html, MimeKit.MessagePriority.Normal);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"ERROR EMAIL PAQUETE: {ex.Message} | Inner: {ex.InnerException?.Message}");
+        }
+    }
+}

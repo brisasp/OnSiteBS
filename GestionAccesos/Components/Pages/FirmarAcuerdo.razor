@@ -1,0 +1,247 @@
+@page "/FirmarAcuerdo"
+@layout NoMenuLayout
+
+@inject PdfExporter PdfExporter
+@inject TranslationService TranslationService
+@inject ILocalStorageService LocalStorage
+@inject AppNavigator Navigator
+@inject IGestionAccesosService GestionAccesosService
+@inject IJSRuntime JSRuntime
+@inject EmailService EmailService
+@inject IToastService ToastService
+
+<PageTitle>@TranslationService["LeaYFirme"]</PageTitle>
+
+<SplashScreen Visible="_isLoading"
+              Title="@TranslationService["TituloSplash"]"
+              Subtitle="@TranslationService["CargandoAcuerdo"]" />
+
+<div class="agreement-shell">
+    <div class="agreement-topbar">
+        <div>
+            <h1>@TranslationService["LeaYFirme"]</h1>
+            <p>@TranslationService["ReviseYFirme"]</p>
+        </div>
+    </div>
+
+    <div class="pdf-fullscreen-area">
+        @if (!string.IsNullOrWhiteSpace(PdfUrl))
+        {
+            <iframe src="@PdfUrl" class="pdf-fullscreen-frame"></iframe>
+        }
+        else
+        {
+            <div class="empty-state">
+                @TranslationService["ErrorCargarDocumento"]
+            </div>
+        }
+    </div>
+
+    <div id="floatingSignaturePanel" class="floating-signature-panel">
+        <div id="floatingSignatureHandle" class="floating-signature-handle">
+            <span>@TranslationService["FirmaPanelTitulo"]</span>
+            <span class="drag-hint">@TranslationService["MoverPanel"]</span>
+        </div>
+
+        <div class="floating-signature-body">
+            <p class="signature-help">
+                @TranslationService["FirmeEnElRecuadro"]
+            </p>
+
+            <div class="signature-wrapper">
+                <SignaturePad @ref="signaturePad"
+                              @bind-Value="Signature"
+                              Options="_options"
+                              Class="signature-pad"
+                              ClearButtonClass="clear-signature-btn"
+                              ClearButtonText="@TranslationService["Limpiar"]" />
+            </div>
+
+            <div class="copy-option">
+                <input class="copy-checkbox"
+                       type="checkbox"
+                       id="mandarCopia"
+                       checked="@mandarCopia"
+                       @onchange="OnMandarCopiaChanged" />
+
+                <label class="copy-label" for="mandarCopia">
+                    @TranslationService["EnviarUnaCopiaA"] @correoVisitante
+                </label>
+            </div>
+
+            <div class="floating-actions">
+                <button type="button" class="secondary-btn" @onclick="LimpiarFirma">
+                    @TranslationService["Limpiar"]
+                </button>
+
+                <button type="button" class="firma-btn" @onclick="HandleFirmarAcuerdo">
+                    @TranslationService["DeAcuerdo"]
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool mandarCopia { get; set; }
+    private byte[] DocumentContent = Array.Empty<byte>();
+    private bool _isLoading { get; set; }
+    private byte[] Signature { get; set; } = Array.Empty<byte>();
+    private string SignatureAsBase64Cortada = string.Empty;
+    private string lenguaje = "es";
+    private string correoVisitante { get; set; } = string.Empty;
+    private VisitanteDTO visitante { get; set; } = new();
+    private SignaturePad signaturePad;
+    private string PdfUrl { get; set; } = string.Empty;
+
+    private SignaturePadOptions _options = new SignaturePadOptions
+    {
+        LineCap = LineCap.Round,
+        LineJoin = LineJoin.Round,
+        LineWidth = 10
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            visitante = await LocalStorage.GetItemAsync<VisitanteDTO>("visitante") ?? new VisitanteDTO();
+            correoVisitante = visitante.Correo ?? string.Empty;
+
+            await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+            lenguaje = TranslationService.CurrentCulture;
+
+            await LoadPdf(lenguaje);
+
+            await JSRuntime.InvokeVoidAsync("firmarAcuerdo.makeDraggable", "floatingSignaturePanel", "floatingSignatureHandle");
+
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetPdfPath(string idioma)
+    {
+        return idioma switch
+        {
+            "es" => "pdfs/acuerdo_es.pdf",
+            "en" => "pdfs/acuerdo_en.pdf",
+            "fr" => "pdfs/acuerdo_fr.pdf",
+            "ar" => "pdfs/acuerdo_ar.pdf",
+            _ => "pdfs/acuerdo_es.pdf"
+        };
+    }
+
+    private async Task LoadPdf(string idioma)
+    {
+        var relativePath = GetPdfPath(idioma);
+        var physicalPath = Path.Combine("wwwroot", relativePath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+
+        if (File.Exists(physicalPath))
+        {
+            DocumentContent = await File.ReadAllBytesAsync(physicalPath);
+            PdfUrl = relativePath;
+        }
+    }
+
+    private void OnMandarCopiaChanged(ChangeEventArgs e)
+    {
+        if (e.Value is bool valorBool)
+        {
+            mandarCopia = valorBool;
+            return;
+        }
+
+        mandarCopia = e.Value?.ToString()?.ToLower() == "true";
+    }
+
+    private async Task LimpiarFirma()
+    {
+        if (signaturePad is not null)
+        {
+            await signaturePad.Clear();
+        }
+    }
+
+    private async Task HandleFirmarAcuerdo()
+    {
+        try
+        {
+            if (Signature == null || Signature.Length == 0)
+            {
+                ToastService.MostrarError(TranslationService["PorFavorFirme"]);
+                return;
+            }
+
+            var base64 = System.Text.Encoding.UTF8.GetString(Signature);
+            SignatureAsBase64Cortada = base64.StartsWith("data:image/png;base64,")
+                ? base64["data:image/png;base64,".Length..]
+                : base64;
+
+            var archivoPdf = await PdfExporter.GetPdfContent(lenguaje, visitante.Nombre, SignatureAsBase64Cortada);
+
+            if (archivoPdf == null || archivoPdf.Length == 0)
+            {
+                ToastService.MostrarError(TranslationService["ErrorGenerarPdf"]);
+                return;
+            }
+
+            var acuerdoDTO = new AcuerdoFirmadoDTO
+            {
+                IdVisitante = visitante.IdVisitante,
+                FechaFirma = DateTime.Now,
+                Archivo = archivoPdf
+            };
+
+            var result = await GestionAccesosService.TratarAcuerdo(acuerdoDTO);
+
+            if (result.Errors.Count > 0)
+            {
+                ToastService.MostrarError(string.Join(", ", result.Errors));
+                return;
+            }
+
+            DocumentContent = archivoPdf;
+
+            if (mandarCopia)
+            {
+                await EnviarCorreoCopia();
+            }
+
+            ToastService.MostrarOk(TranslationService["AcuerdoGuardadoConExito"]);
+            Navigator.NavigateTo("/SeleccionarVisita");
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al generar o guardar el acuerdo: {ex.Message}");
+        }
+    }
+
+    private async Task EnviarCorreoCopia()
+    {
+        string asunto = TranslationService["AsuntoAcuerdoFirmado"];
+        string cuerpo =
+            $"{TranslationService["AcuerdoFirmadoLinea1"]}<br>" +
+            $"{TranslationService["AcuerdoFirmadoLinea2"]}<br>" +
+            $"{TranslationService["AcuerdoFirmadoLinea3"]}";
+
+        string nombreArchivo = $"Acuerdo_{visitante.Nombre}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
+
+        if (!string.IsNullOrWhiteSpace(correoVisitante) && DocumentContent?.Length > 0)
+        {
+            await EmailService.SendEmailWithAttachmentAsync(
+                correoVisitante,
+                asunto,
+                cuerpo,
+                DocumentContent,
+                nombreArchivo);
+        }
+        else
+        {
+            ToastService.MostrarError(TranslationService["NoSePudoEnviarElCorreoFaltaInformacion"]);
+        }
+    }
+}

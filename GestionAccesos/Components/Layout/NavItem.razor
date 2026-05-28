@@ -1,0 +1,14 @@
+﻿<div class="nav-item">
+    <NavLink class="nav-link" href="@Href" Match="NavLinkMatch.All" title="@Text">
+        <div class="contenedor-icono-sidebar">
+            <span class="bi @Icon icono-sidebar"></span>
+        </div>
+        <span class="nav-text nav-label">@Text</span>
+    </NavLink>
+</div>
+
+@code {
+    [Parameter] public string Href { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string Text { get; set; } = "";
+}

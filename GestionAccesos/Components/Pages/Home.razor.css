@@ -1,0 +1,238 @@
+.kiosk-container {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(20px, 4vw, 80px);
+    height: calc(100vh - 70px);
+    width: 100vw;
+    max-width: 100%;
+    overflow: hidden;
+    background: white;
+    padding: 2rem clamp(1rem, 3vw, 3rem);
+    box-sizing: border-box;
+}
+
+.home-reloj {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    gap: .15rem;
+    text-align: center;
+}
+
+.home-reloj-hora {
+    font-size: 2.8rem;
+    font-weight: 800;
+    color: #111827;
+    letter-spacing: -.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.home-reloj-fecha {
+    font-size: .82rem;
+    color: #6b7280;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.kiosk-logo {
+    width: 180px;
+    margin-bottom: 1rem;
+}
+
+.kiosk-texto {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    text-align: center;
+    z-index: 1;
+}
+
+.kiosk-logo-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+}
+
+.kiosk-logo-inline {
+    width: 320px;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.kiosk-title {
+    font-size: 2.8rem;
+    font-weight: bold;
+    margin-bottom: 2rem;
+    color: #333;
+}
+
+    .kiosk-title span {
+        color: #a91c32;
+    }
+
+.kiosk-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    margin-bottom: 3rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.kiosk-btn {
+    padding: 17px 40px;
+    border-radius: 50px;
+    cursor: pointer;
+    border: 0;
+    background-color: #a91c32;
+    color: white;
+    letter-spacing: 1px;
+    font-size: 16px;
+    font-weight: normal !important;
+    transition: all 0.3s ease;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    width: 280px;
+}
+
+    .kiosk-btn:hover {
+        background-color: #8e172a;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    }
+
+    .kiosk-btn:active {
+        transform: translateY(2px);
+        box-shadow: none;
+    }
+
+.kiosk-footer {
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    display: flex;
+    gap: 12px;
+    z-index: 20;
+}
+
+.small-btn {
+    background-color: #f2f2f2;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: normal !important;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+    .small-btn:hover {
+        background-color: #e0e0e0;
+        transform: translateY(-1px);
+    }
+
+.kiosk-language {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    text-align: right;
+    z-index: 20;
+}
+
+.lang-dropdown {
+    position: absolute;
+    bottom: 50px;
+    right: 0;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    width: 160px;
+    z-index: 1000;
+}
+
+    .lang-dropdown ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .lang-dropdown li {
+        padding: 12px 16px;
+        font-size: 0.95rem;
+        color: #333;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+    }
+
+        .lang-dropdown li:hover {
+            background-color: #f2f2f2;
+        }
+
+.btn-lang {
+    background-color: #a91c32;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 50px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+    .btn-lang:hover {
+        background-color: #8e172a;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-lang:active {
+        transform: translateY(2px);
+        box-shadow: none;
+    }
+
+.dropdown-icon {
+    margin-left: 8px;
+    transition: transform 0.3s ease-in-out;
+    font-size: 1rem;
+    display: inline-block;
+}
+
+.rotate-up {
+    transform: rotate(180deg);
+}
+
+.hero-clean {
+    width: min(460px, 40vw);
+    height: auto;
+    aspect-ratio: 460 / 340;
+    border-radius: 24px;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+}
+
+.hero-watermark {
+    width: 90%;
+    height: auto;
+    opacity: 1;
+    filter: none;
+    object-fit: contain;
+}
+
+.accent-text {
+    color: #d7002d;
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "Id": "1e57f2ae-5f32-49c8-bf0a-2cde27e299f1",
+    "Fecha": "2026-06-09",
+    "Descripcion": "Dia de La Rioja",
+    "Ambito": "Regional"
+  },
+  {
+    "Id": "19bb9953-1374-4f69-92f8-cb1f61c12507",
+    "Fecha": "2026-06-11",
+    "Descripcion": "San bernabe",
+    "Ambito": "Local"
+  }
+]

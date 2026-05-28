@@ -1,0 +1,14 @@
+<svg width="340" height="110" viewBox="0 0 340 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Círculo exterior (la O) en negro -->
+  <circle cx="46" cy="55" r="38" stroke="#212529" stroke-width="5" fill="none"/>
+  <!-- Punto central en negro -->
+  <circle cx="46" cy="55" r="14" fill="#212529"/>
+  <!-- Barra + dientes en negro -->
+  <rect x="82" y="48" width="22" height="14" rx="4" fill="#212529"/>
+  <rect x="90" y="62" width="8" height="13" rx="3" fill="#212529"/>
+  <rect x="82" y="62" width="7" height="9" rx="3" fill="#212529"/>
+  <!-- NSITE: N en negro, SITE en granate, mismo texto pegado -->
+  <text x="108" y="80" font-family="Space Grotesk, sans-serif" font-size="62" font-weight="700">
+    <tspan fill="#212529">N</tspan><tspan fill="#a91c32">SITE</tspan>
+  </text>
+</svg>

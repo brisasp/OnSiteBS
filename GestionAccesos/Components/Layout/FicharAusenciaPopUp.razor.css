@@ -1,0 +1,200 @@
+.absence-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+    background: rgba(2, 6, 23, .72);
+    backdrop-filter: blur(14px);
+}
+
+.absence-modal {
+    width: min(100%, 520px);
+    border: 1px solid #e2e8f0;
+    border-radius: 28px;
+    background: #ffffff;
+    box-shadow: 0 30px 90px rgba(0,0,0,.15);
+    overflow: hidden;
+}
+
+.absence-modal-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.8rem 1.8rem 1.2rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.absence-eyebrow {
+    display: inline-block;
+    margin-bottom: .45rem;
+    color: #a91c32;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+
+.absence-modal-header h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: -.03em;
+}
+
+.absence-modal-header p {
+    margin: .45rem 0 0;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+.absence-close-btn {
+    width: 42px;
+    height: 42px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #64748b;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+    .absence-close-btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+    }
+
+.absence-form {
+    padding: 1.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.absence-field {
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+}
+
+    .absence-field label {
+        color: #374151;
+        font-size: .9rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+        .absence-field label i {
+            color: #a91c32;
+        }
+
+/* ===== MOTIVO CARDS ===== */
+.absence-motivo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .6rem;
+    width: 100%;
+}
+
+.absence-motivo-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    padding: 1rem .75rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 16px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: .85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s ease;
+    font-family: inherit;
+    text-align: center;
+}
+
+    .absence-motivo-card i {
+        font-size: 1.4rem;
+    }
+
+    .absence-motivo-card:hover {
+        border-color: #a91c32;
+        background: #fff5f5;
+        color: #a91c32;
+    }
+
+    .absence-motivo-card.selected {
+        border-color: #a91c32;
+        background: #fff1f2;
+        color: #a91c32;
+        box-shadow: 0 0 0 3px rgba(169, 28, 50, .15);
+    }
+
+.absence-control {
+    width: 100%;
+    min-height: 52px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #f8fafc;
+    color: #0f172a;
+    padding: 0 .95rem;
+    outline: none;
+    font-family: inherit;
+    font-size: .95rem;
+}
+
+    .absence-control:focus {
+        border-color: #a91c32;
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(169, 28, 50, .1);
+    }
+
+    .absence-control::placeholder {
+        color: #94a3b8;
+    }
+
+.absence-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .75rem;
+    margin-top: .6rem;
+}
+
+.absence-btn {
+    min-height: 46px;
+    border: 0;
+    border-radius: 14px;
+    padding: 0 1.4rem;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: .95rem;
+}
+
+.absence-btn-secondary {
+    background: #f1f5f9;
+    color: #374151;
+    border: 1px solid #e2e8f0;
+}
+
+    .absence-btn-secondary:hover {
+        background: #e2e8f0;
+    }
+
+.absence-btn-primary {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: white;
+    box-shadow: 0 14px 32px rgba(22, 163, 74, .22);
+}
+
+    .absence-btn-primary:hover {
+        filter: brightness(1.05);
+    }

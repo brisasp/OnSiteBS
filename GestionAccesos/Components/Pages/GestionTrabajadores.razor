@@ -1,0 +1,541 @@
+﻿@page "/GestionTrabajadores"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+
+@inject IToastService ToastService
+@inject IGestionAccesosService GestionAccesosService
+@inject ExcelExportCoordinator ExcelExporter
+@inject PdfExporter PdfExporter
+
+<PageTitle>Gestión Trabajadores</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando trabajadores...</span>
+        </div>
+    </div>
+}
+
+<div class="trabajadores-page">
+    <section class="trabajadores-hero">
+        <div>
+            <span class="trabajadores-kicker">RRHH</span>
+            <h1>Gestión de trabajadores</h1>
+            <p>Consulta, filtra y administra los trabajadores registrados en el sistema.</p>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat-card">
+                <span>Total</span>
+                <strong>@Data.Count</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>Vigentes</span>
+                <strong>@Data.Count(t => t.FechaMaximaTemporalidad.HasValue && t.FechaMaximaTemporalidad.Value >= DateTime.Today)</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>Borrados</span>
+                <strong>@Data.Count(t => t.Borrado)</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="trabajadores-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar trabajador, DNI, empresa, departamento..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="toolbar-dates">
+            <label>
+                Desde
+                <input type="date" @bind="DateTimeStart" />
+            </label>
+
+            <label>
+                Hasta
+                <input type="date" @bind="DateTimeEnd" />
+            </label>
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-primary" @onclick="CargarGridFiltrado">
+                <i class="bi bi-funnel"></i>
+                Filtrar
+            </button>
+
+            <button type="button" class="btn-ui btn-soft @(_mostrarDadosDeBaja ? "active" : "")" @onclick="ToggleDadosDeBaja">
+                <i class="bi bi-person-dash"></i>
+                Dados de baja
+            </button>
+
+            <button type="button" class="btn-ui btn-export" @onclick="ExportarTrabajadores" title="Exporta el informe del mes actual">
+                <i class="bi bi-download"></i>
+                Exportar
+            </button>
+        </div>
+    </section>
+
+    <section class="trabajadores-table-card">
+        <div class="table-card-header">
+            <div>
+                <h2>Listado de trabajadores</h2>
+                <p>@TrabajadoresFiltrados.Count() @(TrabajadoresFiltrados.Count() == 1 ? "trabajador encontrado" : "trabajadores encontrados")</p>
+            </div>
+
+            <button type="button" class="btn-ui btn-primary" @onclick="() => AbrirPopup(null)">
+                <i class="bi bi-plus-lg"></i>
+                Nuevo trabajador
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="trabajadores-table">
+                <thead>
+                    <tr>
+                        <th>Acciones</th>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Apellidos</th>
+                        <th>DNI</th>
+                        <th>Empresa</th>
+                        <th>Departamento</th>
+                        <th>Teléfono</th>
+                        <th>Fecha máxima</th>
+                        <th>Observaciones</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @if (!TrabajadoresFiltrados.Any())
+                    {
+                        <tr>
+                            <td colspan="10">
+                                <div class="empty-state">
+                                    <i class="bi bi-person-x"></i>
+                                    <strong>No hay trabajadores para mostrar</strong>
+                                    <span>Prueba cambiando los filtros o cargando todos los registros.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var trabajador in TrabajadoresFiltrados)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="row-actions">
+                                        <button type="button" class="btn-icon edit" @onclick="() => AbrirPopup(trabajador)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+
+                                        <button type="button" class="btn-icon delete" @onclick="() => EliminarTrabajador(trabajador)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+
+                                <td>@trabajador.IdTrabajador</td>
+                                <td class="strong-cell">@trabajador.Nombre</td>
+                                <td>@($"{trabajador.Apellido1} {trabajador.Apellido2}")</td>
+                                <td>@trabajador.Dni</td>
+                                <td>@GetNombreEmpresa(trabajador.IdEtt)</td>
+                                <td>@trabajador.Departamento</td>
+                                <td>@trabajador.TelefonoPersonal</td>
+                                <td>@FormatDate(trabajador.FechaMaximaTemporalidad)</td>
+                                <td>@trabajador.Observaciones</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* Modal crear / editar trabajador *@
+    @if (_mostrarModal)
+{
+    <div class="modal-backdrop-custom" @onclick="CerrarModal">
+        <div class="trabajador-modal" @onclick:stopPropagation="true">
+            <div class="modal-header-custom">
+                <div>
+                    <h3>@(_editando.IdTrabajador == 0 ? "Nuevo trabajador" : "Editar trabajador")</h3>
+                    <p>@(_editando.IdTrabajador == 0 ? "Rellena los datos del nuevo trabajador." : $"Editando trabajador #{_editando.IdTrabajador}")</p>
+                </div>
+                <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <div class="modal-body-custom">
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Nombre *</label>
+                        <input type="text" placeholder="Nombre" @bind="_editando.Nombre" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Primer apellido *</label>
+                        <input type="text" placeholder="Primer apellido" @bind="_editando.Apellido1" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Segundo apellido</label>
+                        <input type="text" placeholder="Segundo apellido" @bind="_editando.Apellido2" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>DNI *</label>
+                        <input type="text" placeholder="12345678A" @bind="_editando.Dni" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Empresa ETT *</label>
+                        <select @bind="_editando.IdEtt">
+                            <option value="0">-- Selecciona una empresa --</option>
+                            @foreach (var emp in _empresas)
+                            {
+                                <option value="@emp.IdEtt">@emp.Nombre</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label>Departamento</label>
+                        <input type="text" placeholder="Ej. Producción, Logística..." @bind="_editando.Departamento" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Teléfono</label>
+                        <input type="tel" placeholder="600000000" @bind="_editando.TelefonoPersonal" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>Fecha máxima temporalidad</label>
+                        <input type="datetime-local" @bind="_fechaMaxima" />
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>Observaciones</label>
+                        <input type="text" placeholder="Notas adicionales..." @bind="_editando.Observaciones" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer-custom">
+                <button type="button" class="btn-ui btn-soft" @onclick="CerrarModal">Cancelar</button>
+                <button type="button" class="btn-ui btn-primary" @onclick="GuardarTrabajador" disabled="@_guardando">
+                    @if (_guardando) { <span class="btn-spinner"></span> }
+                    else { <i class="bi bi-check-lg"></i> }
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _guardando;
+    private bool _mostrarModal;
+    private bool _mostrarDadosDeBaja;
+    private ObservableCollection<TrabajadoresDTO> Data = new();
+
+    private List<EmpresasEttDTO> _empresas = new();
+    private Dictionary<int, string> empresaNombres = new();
+    private TrabajadoresDTO _editando = new();
+    private DateTime? _fechaMaxima;
+
+    private DateTime DateTimeStart { get; set; } = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime DateTimeEnd { get; set; } = DateTime.Today;
+    private string SearchText { get; set; } = string.Empty;
+
+    private IEnumerable<TrabajadoresDTO> TrabajadoresFiltrados
+    {
+        get
+        {
+            var lista = _mostrarDadosDeBaja
+                ? Data.Where(t => t.Borrado)
+                : Data.Where(t => !t.Borrado);
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var text = SearchText.Trim().ToLower();
+                lista = lista.Where(t =>
+                    $"{t.IdTrabajador} {t.Nombre} {t.Apellido1} {t.Apellido2} {t.Dni} {GetNombreEmpresa(t.IdEtt)} {t.Departamento} {t.TelefonoPersonal} {t.Observaciones}"
+                    .ToLower()
+                    .Contains(text));
+            }
+
+            return lista;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            await CargarEmpresas();
+            await CargarTodosLosTrabajadores();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar trabajadores: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarEmpresas()
+    {
+        var empresas = await GestionAccesosService.GetAllEmpresas();
+
+        if (empresas?.Data == null)
+            return;
+
+        _empresas = empresas.Data.Where(e => e.IdEtt > 0).ToList();
+        empresaNombres = _empresas
+            .GroupBy(e => e.IdEtt)
+            .Select(g => g.First())
+            .ToDictionary(e => e.IdEtt, e => e.Nombre);
+    }
+
+    private async Task CargarGrid() => await CargarTodosLosTrabajadores();
+
+    private async Task ToggleDadosDeBaja()
+    {
+        _mostrarDadosDeBaja = !_mostrarDadosDeBaja;
+        await CargarTodosLosTrabajadores();
+    }
+
+    private async Task CargarGridFiltrado()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.GetTrabajadoresByDateRange(DateTimeStart, DateTimeEnd);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            Data = new ObservableCollection<TrabajadoresDTO>(result.Data);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarTodosLosTrabajadores()
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.GetAllTrabajadores();
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            Data = new ObservableCollection<TrabajadoresDTO>(result.Data);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void AbrirPopup(TrabajadoresDTO? trabajador)
+    {
+        if (trabajador == null)
+        {
+            _editando = new TrabajadoresDTO();
+            _fechaMaxima = DateTime.Today.AddMonths(6);
+        }
+        else
+        {
+            _editando = new TrabajadoresDTO
+            {
+                IdTrabajador = trabajador.IdTrabajador,
+                Nombre = trabajador.Nombre,
+                Apellido1 = trabajador.Apellido1,
+                Apellido2 = trabajador.Apellido2,
+                Dni = trabajador.Dni,
+                IdEtt = trabajador.IdEtt,
+                Departamento = trabajador.Departamento,
+                TelefonoPersonal = trabajador.TelefonoPersonal,
+                Observaciones = trabajador.Observaciones,
+                FechaMaximaTemporalidad = trabajador.FechaMaximaTemporalidad
+            };
+            _fechaMaxima = trabajador.FechaMaximaTemporalidad;
+        }
+
+        _mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModal = false;
+        _editando = new TrabajadoresDTO();
+    }
+
+    private async Task GuardarTrabajador()
+    {
+        if (string.IsNullOrWhiteSpace(_editando.Nombre))
+        { ToastService.MostrarError("El nombre es obligatorio."); return; }
+
+        if (string.IsNullOrWhiteSpace(_editando.Apellido1))
+        { ToastService.MostrarError("El primer apellido es obligatorio."); return; }
+
+        if (string.IsNullOrWhiteSpace(_editando.Dni))
+        { ToastService.MostrarError("El DNI es obligatorio."); return; }
+
+        if (_editando.IdEtt == 0)
+        { ToastService.MostrarError("Selecciona una empresa ETT."); return; }
+
+        _editando.FechaMaximaTemporalidad = _fechaMaxima;
+        _guardando = true;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarTrabajador(_editando);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk(_editando.IdTrabajador == 0 ? "Trabajador creado." : "Trabajador actualizado.");
+            CerrarModal();
+            await CargarGrid();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task EliminarTrabajador(TrabajadoresDTO trabajador)
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.DeleteTrabajador(trabajador.IdTrabajador);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk($"Trabajador {trabajador.Nombre} {trabajador.Apellido1} borrado correctamente.");
+            await CargarGrid();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task GuardarCambios(TrabajadoresDTO trabajador)
+    {
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarTrabajador(trabajador);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk("Trabajador guardado correctamente.");
+            await CargarGrid();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ExportarTrabajadores()
+    {
+        _isLoading = true;
+        try
+        {
+            var desde = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            var hasta = DateTime.Today.AddDays(1).AddSeconds(-1);
+
+            var resultFichajes = await GestionAccesosService.GetAllFichajes(desde, hasta);
+            var resultAusencias = await GestionAccesosService.GetAllAusencias(desde, hasta);
+
+            var idsVisibles = string.IsNullOrWhiteSpace(SearchText)
+                ? null
+                : TrabajadoresFiltrados.Select(t => t.IdTrabajador).ToHashSet();
+
+            var fichajesFiltrados = resultFichajes?.Data == null ? new List<FichajesTrabajadorDTO>()
+                : idsVisibles == null
+                    ? resultFichajes.Data
+                    : resultFichajes.Data.Where(f => idsVisibles.Contains(f.IdTrabajador)).ToList();
+
+            var ausenciasFiltradas = resultAusencias?.Data == null ? new List<AusenciasTrabajadorDTO>()
+                : idsVisibles == null
+                    ? resultAusencias.Data
+                    : resultAusencias.Data.Where(a => idsVisibles.Contains(a.IdTrabajador)).ToList();
+
+            if (!fichajesFiltrados.Any() && !ausenciasFiltradas.Any())
+            {
+                ToastService.MostrarError("No hay datos para los trabajadores filtrados en el período seleccionado.");
+                return;
+            }
+
+            await PdfExporter.ExportarInformeHorasPdf(fichajesFiltrados, ausenciasFiltradas, desde, DateTime.Today,
+                idsVisibles == null ? null : TrabajadoresFiltrados.ToList());
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al exportar: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string GetNombreEmpresa(int idEtt)
+    {
+        return empresaNombres.TryGetValue(idEtt, out var nombre)
+            ? nombre
+            : "Desconocido";
+    }
+
+    private static string FormatDate(DateTime? fecha)
+    {
+        return fecha.HasValue
+            ? fecha.Value.ToString("dd/MM/yyyy HH:mm")
+            : "-";
+    }
+}

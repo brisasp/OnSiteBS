@@ -1,0 +1,472 @@
+@page "/GestionPersonasAVisitar"
+@attribute [Authorize(Roles = "Administrador,Visitas")]
+
+@using System.Collections.ObjectModel
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IToastService ToastService
+@inject IGestionAccesosService GestionAccesosService
+
+<PageTitle>Personas a visitar</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando personas...</span>
+        </div>
+    </div>
+}
+
+<div class="personas-page">
+    <section class="personas-hero">
+        <div>
+            <span class="personas-kicker">ADMINISTRACIÓN</span>
+            <h1>Personas a visitar</h1>
+            <p>Gestiona las personas que pueden ser visitadas en las instalaciones.</p>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat-card">
+                <span>Total</span>
+                <strong>@Data.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span>Activas</span>
+                <strong>@Data.Count(p => !p.Borrado)</strong>
+            </div>
+            <div class="stat-card">
+                <span>Dadas de baja</span>
+                <strong>@Data.Count(p => p.Borrado)</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="personas-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar por nombre, correo, departamento..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-soft @(_mostrarBorradas ? "active" : "")" @onclick="ToggleMostrarBorradas">
+                <i class="bi bi-archive"></i>
+                @(_mostrarBorradas ? "Ocultar dadas de baja" : "Ver dadas de baja")
+            </button>
+
+            <button type="button" class="btn-ui btn-primary" @onclick="() => AbrirPopup(null)">
+                <i class="bi bi-plus-lg"></i>
+                Nueva persona
+            </button>
+        </div>
+    </section>
+
+    <section class="personas-table-card">
+        <div class="table-card-header">
+            <div>
+                <h2>Listado de personas</h2>
+                <p>@PersonasFiltradas.Count() @(PersonasFiltradas.Count() == 1 ? "persona encontrada" : "personas encontradas")</p>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="personas-table">
+                <thead>
+                    <tr>
+                        <th>Acciones</th>
+                        <th>ID</th>
+                        <th>Foto</th>
+                        <th>Nombre completo</th>
+                        <th>Correo</th>
+                        <th>Departamento</th>
+                        <th>Fecha registro</th>
+                        @if (_mostrarBorradas)
+                        {
+                            <th>Fecha baja</th>
+                        }
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!PersonasFiltradas.Any())
+                    {
+                        <tr>
+                            <td colspan="@(_mostrarBorradas ? 9 : 8)">
+                                <div class="empty-state">
+                                    <i class="bi bi-person-x"></i>
+                                    <strong>No hay personas para mostrar</strong>
+                                    <span>Crea una nueva persona o ajusta el filtro de búsqueda.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var persona in PersonasFiltradas)
+                        {
+                            <tr class="@(persona.Borrado ? "row-deleted" : "")">
+                                <td>
+                                    <div class="row-actions">
+                                        <button type="button" class="btn-icon edit" title="Editar" @onclick="() => AbrirPopup(persona)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (!persona.Borrado)
+                                        {
+                                            <button type="button" class="btn-icon delete" title="Dar de baja" @onclick="() => ConfirmarEliminar(persona)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                                <td>@persona.IdPersona</td>
+                                <td>
+                                    @if (persona.Foto != null && persona.Foto.Length > 0)
+                                    {
+                                        <img class="persona-foto-thumb"
+                                             src="data:image/jpeg;base64,@Convert.ToBase64String(persona.Foto)"
+                                             alt="Foto" />
+                                    }
+                                    else
+                                    {
+                                        <div class="persona-avatar">
+                                            @GetInitials(persona.NombreCompleto)
+                                        </div>
+                                    }
+                                </td>
+                                <td class="strong-cell">@persona.NombreCompleto</td>
+                                <td>@(persona.Correo ?? "-")</td>
+                                <td>@(persona.Departamento ?? "-")</td>
+                                <td>@persona.FechaRegistro.ToString("dd/MM/yyyy")</td>
+                                @if (_mostrarBorradas)
+                                {
+                                    <td>@(persona.FechaBorrado.HasValue ? persona.FechaBorrado.Value.ToString("dd/MM/yyyy") : "-")</td>
+                                }
+                                <td>
+                                    <span class="badge @(persona.Borrado ? "badge-baja" : "badge-activa")">
+                                        @(persona.Borrado ? "Baja" : "Activa")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* Modal de creación / edición *@
+    @if (_mostrarModal)
+    {
+        <div class="modal-backdrop-custom" @onclick="CerrarPopup">
+            <div class="personas-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>@(_editando.IdPersona == 0 ? "Nueva persona" : "Editar persona")</h3>
+                        <p>@(_editando.IdPersona == 0 ? "Rellena los datos y guarda." : $"Editando: {_editando.NombreCompleto}")</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CerrarPopup">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body-custom">
+                    <div class="form-grid">
+                        <div class="form-field full-width">
+                            <label>Nombre completo *</label>
+                            <input type="text"
+                                   placeholder="Nombre y apellidos"
+                                   @bind="_editando.NombreCompleto" />
+                        </div>
+
+                        <div class="form-field">
+                            <label>Correo electrónico</label>
+                            <input type="email"
+                                   placeholder="correo@empresa.com"
+                                   @bind="_editando.Correo" />
+                        </div>
+
+                        <div class="form-field">
+                            <label>Departamento</label>
+                            <input type="text"
+                                   placeholder="Ej: Recursos Humanos"
+                                   @bind="_editando.Departamento" />
+                        </div>
+
+                        <div class="form-field full-width">
+                            <label>Foto</label>
+                            @if (_fotoPreview != null)
+                            {
+                                <div class="foto-preview-container">
+                                    <img class="foto-preview" src="@_fotoPreview" alt="Foto previa" />
+                                    <button type="button" class="btn-icon delete" @onclick="QuitarFoto" title="Quitar foto">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <InputFile class="input-file" accept="image/*" OnChange="OnFotoSeleccionada" />
+                                <small>Formatos admitidos: JPG, PNG. Máx. 2 MB.</small>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CerrarPopup">Cancelar</button>
+                    <button type="button" class="btn-ui btn-primary" @onclick="GuardarPersona" disabled="@_guardando">
+                        @if (_guardando)
+                        {
+                            <span class="btn-spinner"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-lg"></i>
+                        }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Modal de confirmación de baja *@
+    @if (_mostrarConfirmEliminar)
+    {
+        <div class="modal-backdrop-custom" @onclick="CancelarEliminar">
+            <div class="confirm-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>Confirmar baja</h3>
+                        <p>Esta acción marcará la persona como dada de baja.</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CancelarEliminar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body-custom">
+                    <p>¿Estás seguro de que deseas dar de baja a <strong>@_personaAEliminar?.NombreCompleto</strong>?</p>
+                </div>
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CancelarEliminar">Cancelar</button>
+                    <button type="button" class="btn-ui btn-danger" @onclick="EliminarPersona">
+                        <i class="bi bi-trash"></i>
+                        Dar de baja
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _mostrarModal;
+    private bool _mostrarConfirmEliminar;
+    private bool _guardando;
+    private bool _mostrarBorradas;
+
+    private ObservableCollection<PersonasAvisitarDTO> Data = new();
+    private PersonasAvisitarDTO _editando = new();
+    private PersonasAvisitarDTO? _personaAEliminar;
+
+    private string? _fotoPreview;
+    private string SearchText { get; set; } = string.Empty;
+
+    private IEnumerable<PersonasAvisitarDTO> PersonasFiltradas
+    {
+        get
+        {
+            var lista = _mostrarBorradas
+                ? Data.AsEnumerable()
+                : Data.Where(p => !p.Borrado);
+
+            if (string.IsNullOrWhiteSpace(SearchText))
+                return lista;
+
+            var text = SearchText.Trim().ToLower();
+
+            return lista.Where(p =>
+                $"{p.IdPersona} {p.NombreCompleto} {p.Correo} {p.Departamento}"
+                .ToLower()
+                .Contains(text));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            await CargarGrid();
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar personas: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarGrid()
+    {
+        var result = await GestionAccesosService.GetAllPersonasAVisitar();
+
+        if (result.Errors.Any())
+        {
+            ToastService.MostrarError(result.Errors.First());
+            return;
+        }
+
+        Data = new ObservableCollection<PersonasAvisitarDTO>(result.Data);
+    }
+
+    private void AbrirPopup(PersonasAvisitarDTO? persona)
+    {
+        if (persona == null)
+        {
+            _editando = new PersonasAvisitarDTO();
+            _fotoPreview = null;
+        }
+        else
+        {
+            _editando = new PersonasAvisitarDTO
+            {
+                IdPersona = persona.IdPersona,
+                NombreCompleto = persona.NombreCompleto,
+                Correo = persona.Correo,
+                Departamento = persona.Departamento,
+                Foto = persona.Foto,
+                FechaRegistro = persona.FechaRegistro,
+                Borrado = persona.Borrado
+            };
+
+            _fotoPreview = persona.Foto != null && persona.Foto.Length > 0
+                ? $"data:image/jpeg;base64,{Convert.ToBase64String(persona.Foto)}"
+                : null;
+        }
+
+        _mostrarModal = true;
+    }
+
+    private void CerrarPopup()
+    {
+        _mostrarModal = false;
+        _editando = new PersonasAvisitarDTO();
+        _fotoPreview = null;
+    }
+
+    private async Task OnFotoSeleccionada(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        if (file.Size > 2 * 1024 * 1024)
+        {
+            ToastService.MostrarError("La foto no puede superar los 2 MB.");
+            return;
+        }
+
+        using var stream = file.OpenReadStream(2 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        _editando.Foto = ms.ToArray();
+        _fotoPreview = $"data:image/jpeg;base64,{Convert.ToBase64String(_editando.Foto)}";
+    }
+
+    private void QuitarFoto()
+    {
+        _editando.Foto = null;
+        _fotoPreview = null;
+    }
+
+    private async Task GuardarPersona()
+    {
+        if (string.IsNullOrWhiteSpace(_editando.NombreCompleto))
+        {
+            ToastService.MostrarError("El nombre completo es obligatorio.");
+            return;
+        }
+
+        _guardando = true;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarPersonaAVisitar(_editando);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk(_editando.IdPersona == 0
+                ? "Persona creada correctamente."
+                : "Persona actualizada correctamente.");
+
+            CerrarPopup();
+            await CargarGrid();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void ConfirmarEliminar(PersonasAvisitarDTO persona)
+    {
+        _personaAEliminar = persona;
+        _mostrarConfirmEliminar = true;
+    }
+
+    private void CancelarEliminar()
+    {
+        _personaAEliminar = null;
+        _mostrarConfirmEliminar = false;
+    }
+
+    private async Task EliminarPersona()
+    {
+        if (_personaAEliminar == null) return;
+
+        _isLoading = true;
+        _mostrarConfirmEliminar = false;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarPersonaAVisitar(_personaAEliminar, eliminar: true);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk($"{_personaAEliminar.NombreCompleto} ha sido dado/a de baja.");
+            _personaAEliminar = null;
+            await CargarGrid();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleMostrarBorradas() => _mostrarBorradas = !_mostrarBorradas;
+
+    private static string GetInitials(string? nombre)
+    {
+        if (string.IsNullOrWhiteSpace(nombre)) return "?";
+
+        var partes = nombre.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return partes.Length >= 2
+            ? $"{partes[0][0]}{partes[1][0]}".ToUpper()
+            : nombre[0].ToString().ToUpper();
+    }
+}

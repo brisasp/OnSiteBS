@@ -1,0 +1,124 @@
+@inherits ComponentBase
+@inject IToastService ToastService
+@inject TranslationService TranslationService
+
+@if (IsPopupVisible)
+{
+    <div class="absence-modal-backdrop">
+        <div class="absence-modal">
+            <div class="absence-modal-header">
+                <div>
+                    <span class="absence-eyebrow">@TranslationService["ControlHorario"]</span>
+                    <h2>@TranslationService["FicharAusenciaTitulo"]</h2>
+                    <p>@TranslationService["SeleccionaMotivoInstruccion"]</p>
+                </div>
+
+                <button type="button" class="absence-close-btn" @onclick="CerrarPopup">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+
+            <EditForm Model="@editAusencia" OnValidSubmit="GuardarCambios">
+                <DataAnnotationsValidator />
+
+                <div class="absence-form">
+                    <div class="absence-field">
+                        <label>
+                            <i class="bi bi-clipboard-x"></i>
+                            @TranslationService["SeleccionaMotivoLabel"]
+                        </label>
+
+                        <div class="absence-motivo-grid">
+                            @foreach (var tipo in tipoNombres)
+                            {
+                                var isSelected = editAusencia.Motivo == tipo.ID;
+                                <button type="button"
+                                        class="absence-motivo-card @(isSelected ? "selected" : "")"
+                                        @onclick="() => editAusencia.Motivo = tipo.ID">
+                                    <i class="bi @GetIconMotivo(tipo.Nombre)"></i>
+                                    <span>@tipo.Nombre</span>
+                                </button>
+                            }
+                        </div>
+
+                        <label for="observacionesAusencia" style="margin-top:.4rem">
+                            <i class="bi bi-chat-text"></i>
+                            @TranslationService["ObservacionesLabel"] <small style="font-weight:400;opacity:.6">@TranslationService["Opcional"]</small>
+                        </label>
+
+                        <input id="observacionesAusencia"
+                               class="absence-control"
+                               type="text"
+                               placeholder="@TranslationService["ObservacionesPlaceholder"]"
+                               @bind="editAusencia.Observaciones" />
+                    </div>
+
+                    <div class="absence-actions">
+                        <button type="button"
+                                class="absence-btn absence-btn-secondary"
+                                @onclick="CerrarPopup">
+                            @TranslationService["Cancelar"]
+                        </button>
+
+                        <button type="submit"
+                                class="absence-btn absence-btn-primary">
+                            @TranslationService["GuardarAusencia"]
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback<AusenciasTrabajadorDTO> OnSave { get; set; }
+
+    private bool IsPopupVisible;
+    private AusenciasTrabajadorDTO editAusencia = new();
+    private List<DropDownWrapper> tipoNombres = new();
+
+    public void AbrirPopup(List<DropDownWrapper> tiposAusencia, int idTrabajador)
+    {
+        editAusencia = new AusenciasTrabajadorDTO
+        {
+            IdTrabajador = idTrabajador,
+            Motivo = 0,
+            Observaciones = string.Empty
+        };
+
+        tipoNombres = tiposAusencia;
+        IsPopupVisible = true;
+
+        StateHasChanged();
+    }
+
+    private async Task GuardarCambios()
+    {
+        if (editAusencia.Motivo == 0)
+        {
+            ToastService.MostrarError(TranslationService["DebeSeleccionarMotivo"]);
+            return;
+        }
+
+        await OnSave.InvokeAsync(editAusencia);
+        IsPopupVisible = false;
+    }
+
+    private void CerrarPopup()
+    {
+        IsPopupVisible = false;
+    }
+
+    private static string GetIconMotivo(string? nombre) => nombre?.ToLower() switch
+    {
+        var n when n != null && n.Contains("médic") => "bi-heart-pulse",
+        var n when n != null && n.Contains("medic") => "bi-heart-pulse",
+        var n when n != null && n.Contains("vacac") => "bi-sun",
+        var n when n != null && n.Contains("personal") => "bi-person",
+        var n when n != null && n.Contains("familiar") => "bi-people",
+        var n when n != null && n.Contains("formac") => "bi-book",
+        var n when n != null && n.Contains("baja") => "bi-bandaid",
+        _ => "bi-calendar-x"
+    };
+}

@@ -1,0 +1,134 @@
+@page "/AccesoVisitas"
+@layout NoMenuLayout
+@inject IJSRuntime jsRuntime
+@inject IGestionAccesosService GestionAccesosService
+@inject AppNavigator Navigator
+@inject ILocalStorageService LocalStorage
+@inject TranslationService TranslationService
+
+<PageTitle>@TranslationService["AccesoVisitas"]</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <div class="loading-box">
+            <div class="spinner-border text-danger" role="status"></div>
+            <div class="mt-3">@TranslationService["Cargando"]</div>
+        </div>
+    </div>
+}
+
+<div class="acceso-visitas-page">
+    <div class="acceso-visitas-box">
+        <h1 class="acceso-titulo">@TranslationService["HolaComoSeLlama"]</h1>
+
+        <div class="acceso-buscador">
+            <input class="acceso-input"
+                   placeholder="@TranslationService["IntroduceTuNombreCompleto"]"
+                   @bind="Text"
+                   @bind:event="oninput" />
+
+            @if (visitantesFiltrados.Any())
+            {
+                <div class="visitantes-dropdown">
+                    @foreach (var visitante in visitantesFiltrados)
+                    {
+                        <button type="button"
+                                class="visitante-item"
+                                @onclick="() => SeleccionarVisitante(visitante)">
+                            <img src="@ImagenHelper.ObtenerFotoBase64(visitante.Foto)" alt="Foto" class="visitante-foto" />
+                            <div class="visitante-info">
+                                <div class="visitante-nombre">@visitante.Nombre</div>
+                                <div class="visitante-correo">@visitante.Correo</div>
+                            </div>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="acciones">
+            <button class="kiosk-btn" @onclick="HandleContinue">
+                @TranslationService["Continuar"]
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _isLoading;
+    private List<VisitanteDTO> visitantes { get; set; } = new();
+    private VisitanteDTO? visitanteSeleccionado;
+    private string Text { get; set; } = string.Empty;
+
+    private IEnumerable<VisitanteDTO> visitantesFiltrados =>
+        string.IsNullOrWhiteSpace(Text)
+            ? Enumerable.Empty<VisitanteDTO>()
+            : visitantes
+                .Where(v =>
+                    (!string.IsNullOrWhiteSpace(v.Nombre) &&
+                     v.Nombre.Contains(Text, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(v.Correo) &&
+                     v.Correo.Contains(Text, StringComparison.OrdinalIgnoreCase)))
+                .Take(8);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+
+        var result = await GestionAccesosService.GetAllVisitantes();
+
+        if (result?.Data != null)
+        {
+            visitantes = result.Data;
+        }
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleContinue()
+    {
+        if (visitanteSeleccionado == null)
+        {
+            var nombreCompleto = Text?.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var nombre = nombreCompleto?.FirstOrDefault() ?? string.Empty;
+            var primerApellido = nombreCompleto?.Length > 1 ? nombreCompleto[1] : string.Empty;
+
+            await LocalStorage.SetItemAsync("visitante", new VisitanteDTO
+            {
+                Nombre = nombre,
+                PrimerApellido = primerApellido
+            });
+
+            Navigator.NavigateTo("/RegistrarVisitante");
+        }
+        else
+        {
+            await LocalStorage.SetItemAsync("visitante", visitanteSeleccionado);
+            await RedirigirSegunAcuerdo(visitanteSeleccionado.IdVisitante);
+        }
+    }
+
+    private async Task SeleccionarVisitante(VisitanteDTO selectedVisitante)
+    {
+        visitanteSeleccionado = selectedVisitante;
+        Text = selectedVisitante.Nombre;
+
+        await LocalStorage.SetItemAsync("visitante", selectedVisitante);
+        await RedirigirSegunAcuerdo(selectedVisitante.IdVisitante);
+    }
+
+    private async Task RedirigirSegunAcuerdo(int idVisitante)
+    {
+        var acuerdo = await GestionAccesosService.GetAcuerdoByIdVisitante(idVisitante);
+        var tieneAcuerdo = acuerdo?.Data?.Archivo != null && acuerdo.Data.Archivo.Length > 0;
+
+        Navigator.NavigateTo(tieneAcuerdo ? "/SeleccionarVisita" : "/FirmarAcuerdo");
+    }
+}

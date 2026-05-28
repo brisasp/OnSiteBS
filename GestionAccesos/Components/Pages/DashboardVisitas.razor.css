@@ -1,0 +1,597 @@
+/* ================= TOOLBAR ================= */
+
+.visitas-toolbar-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: .75rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+}
+
+/* Buscador: ocupa el espacio sobrante */
+.toolbar-search {
+    flex: 1 1 280px;
+    display: flex;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0 .75rem;
+    height: 38px;
+    transition: border-color .15s, background .15s;
+}
+
+    .toolbar-search:focus-within {
+        background: white;
+        border-color: #a91c32;
+    }
+
+    .toolbar-search i {
+        color: #94a3b8;
+        font-size: .9rem;
+        margin-right: .5rem;
+    }
+
+    .toolbar-search input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        outline: none;
+        font-size: .875rem;
+        color: #0f172a;
+    }
+
+        .toolbar-search input::placeholder {
+            color: #94a3b8;
+        }
+
+/* Fechas: agrupadas y compactas */
+.toolbar-dates {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+}
+
+    .toolbar-dates label {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .8rem;
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .toolbar-dates input {
+        height: 38px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        padding: 0 .6rem;
+        font-size: .85rem;
+        color: #0f172a;
+        background: white;
+        transition: border-color .15s;
+    }
+
+        .toolbar-dates input:focus {
+            outline: none;
+            border-color: #a91c32;
+        }
+
+/* Acciones: separadas con un divisor sutil a la izquierda */
+.toolbar-actions {
+    display: flex;
+    gap: .4rem;
+    align-items: center;
+    margin-left: auto;
+    padding-left: .5rem;
+    border-left: 1px solid #e2e8f0;
+}
+
+/* ================= BOTONES ================= */
+
+.btn-ui {
+    height: 38px;
+    padding: 0 .9rem;
+    border-radius: 8px;
+    font-size: .85rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    transition: background .15s, border-color .15s, color .15s;
+    white-space: nowrap;
+}
+
+    .btn-ui i {
+        font-size: .85rem;
+    }
+
+/* Primario: mismo estilo base que soft, rojo al hover */
+.btn-primary {
+    background: white;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+    .btn-primary:hover {
+        background: #a91c32;
+        color: white;
+        border-color: #a91c32;
+    }
+
+/* Soft: acciones rápidas (Hoy / Activas) */
+.btn-soft {
+    background: white;
+    color: #475569;
+    border-color: #e2e8f0;
+}
+
+    .btn-soft:hover {
+        background: #a91c32;
+        color: white;
+        border-color: #a91c32;
+    }
+
+/* Export: ghost con icono, no necesita pesar tanto visualmente */
+.btn-export {
+    background: white;
+    color: #475569;
+    border-color: #e2e8f0;
+}
+
+    .btn-export:hover {
+        background: #f8fafc;
+        color: #0f172a;
+        border-color: #cbd5e1;
+    }
+
+/* Responsive: cuando no quepa, reordenamos limpiamente */
+@media (max-width: 900px) {
+    .toolbar-actions {
+        margin-left: 0;
+        padding-left: 0;
+        border-left: none;
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .toolbar-search {
+        max-width: 100%;
+    }
+}
+
+/* ================= BASE ================= */
+
+.visitas-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+}
+
+/* ================= HERO ================= */
+
+.visitas-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+    .visitas-hero h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0;
+        letter-spacing: -.01em;
+    }
+
+    .visitas-hero p {
+        margin-top: .25rem;
+        color: #64748b;
+        font-size: .875rem;
+    }
+
+/* ================= STATS ================= */
+
+.hero-stats {
+    display: flex;
+    gap: .5rem;
+}
+
+.stat-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: .75rem 1.1rem;
+    min-width: 110px;
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+}
+
+    .stat-card span {
+        font-size: .7rem;
+        color: #94a3b8;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+
+    .stat-card strong {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+
+    /* Resaltamos el dato "vivo" con el rojo corporativo */
+    .stat-card:nth-child(2) strong {
+        color: #a91c32;
+    }
+
+/* ================= TABLE CARD ================= */
+
+.visitas-table-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.table-card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+    .table-card-header h2 {
+        font-size: .95rem;
+        font-weight: 600;
+        color: #0f172a;
+        margin: 0;
+    }
+
+    .table-card-header p {
+        color: #94a3b8;
+        font-size: .8rem;
+        margin: .15rem 0 0;
+    }
+
+/* ================= TABLA ================= */
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.visitas-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+    .visitas-table th {
+        font-size: .7rem;
+        color: #94a3b8;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        padding: 1rem 1.25rem; /* antes .75rem */
+        text-align: left;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .visitas-table td {
+        padding: 1rem 1.25rem; /* antes .85rem */
+        border-bottom: 1px solid #f1f5f9;
+        font-size: .875rem;
+        color: #475569;
+    }
+
+    .visitas-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .visitas-table tbody tr {
+        transition: background .12s;
+    }
+
+        .visitas-table tbody tr:hover {
+            background: #fafbfc;
+        }
+
+/* ================= CELDAS ================= */
+
+.strong-cell {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+/* ================= BADGES ================= */
+
+.estado-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.estado-activa {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.estado-cerrada {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.estado-default {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+/* ================= EMPTY ================= */
+
+.empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #94a3b8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .25rem;
+}
+
+    .empty-state i {
+        font-size: 1.75rem;
+        color: #cbd5e1;
+        margin-bottom: .25rem;
+    }
+
+    .empty-state strong {
+        color: #475569;
+        font-weight: 600;
+        font-size: .9rem;
+    }
+
+    .empty-state span {
+        font-size: .8rem;
+        color: #94a3b8;
+    }
+
+/* ================= BOTÓN TABLA ================= */
+
+.btn-table {
+    background: transparent;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: .78rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    transition: background .12s, border-color .12s, color .12s;
+}
+
+    .btn-table:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        color: #0f172a;
+    }
+
+    .btn-table i {
+        font-size: .75rem;
+    }
+
+/* ================= LOADER ================= */
+
+.page-loader {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, .7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.loader-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    font-size: .875rem;
+    color: #475569;
+}
+
+.loader-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #a91c32;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ================= EXPORT DROPDOWN ================= */
+
+.export-dropdown {
+    position: relative;
+}
+
+    .export-dropdown .chev {
+        font-size: .7rem;
+        transition: transform .2s;
+    }
+
+    .export-dropdown.open .chev {
+        transform: rotate(180deg);
+    }
+
+.export-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.1);
+    min-width: 160px;
+    z-index: 200;
+    overflow: hidden;
+}
+
+.export-dropdown.open .export-menu {
+    display: block;
+}
+
+    .export-menu button {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        width: 100%;
+        padding: .65rem 1rem;
+        background: none;
+        border: none;
+        font-size: .85rem;
+        color: #475569;
+        cursor: pointer;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+        .export-menu button:hover {
+            background: #f8fafc;
+            color: #0f172a;
+        }
+
+        .export-menu button i {
+            font-size: .9rem;
+            color: #94a3b8;
+        }
+
+        .export-menu button:hover i {
+            color: #a91c32;
+        }
+
+/* ================= BOTÓN DANGER ================= */
+
+.btn-table--danger {
+    color: #a91c32;
+    border-color: #fecdd3;
+    padding: 4px 8px;
+}
+
+    .btn-table--danger:hover {
+        background: #fff1f2;
+        border-color: #a91c32;
+        color: #a91c32;
+    }
+
+/* ================= MODAL RESET ACUERDO ================= */
+
+.modal-backdrop-custom {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-card-custom {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.18);
+    width: min(460px, 92vw);
+    overflow: hidden;
+}
+
+.modal-header-custom {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+    .modal-header-custom h5 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #0f172a;
+    }
+
+.modal-body-custom {
+    padding: 1.25rem 1.5rem;
+    color: #334155;
+    font-size: .925rem;
+    line-height: 1.55;
+}
+
+    .modal-body-custom p { margin-bottom: .6rem; }
+    .modal-body-custom p:last-child { margin-bottom: 0; }
+
+.modal-footer-custom {
+    display: flex;
+    justify-content: flex-end;
+    gap: .6rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #f1f5f9;
+    background: #f8fafc;
+}
+
+.btn-secondary-action {
+    background: transparent;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-size: .875rem;
+    font-weight: 500;
+    color: #475569;
+    cursor: pointer;
+    transition: background .12s;
+}
+
+    .btn-secondary-action:hover { background: #f1f5f9; }
+
+.btn-danger-action {
+    background: #a91c32;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 18px;
+    font-size: .875rem;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    transition: background .12s;
+}
+
+    .btn-danger-action:hover { background: #8b1628; }

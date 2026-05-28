@@ -1,0 +1,160 @@
+﻿@page "/RegistrarVisitante"
+@layout NoMenuLayout
+@inject IToastService ToastService
+@inject IJSRuntime jsRuntime
+@inject AppNavigator Navigator
+@inject ILocalStorageService LocalStorage
+@inject TranslationService TranslationService
+@inject IGestionAccesosService GestionAccesosService
+
+<PageTitle>Registrar Visitante</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-overlay">
+        <div class="loading-box">
+            <div class="spinner-border text-danger" role="status"></div>
+            <div class="mt-3">Cargando...</div>
+        </div>
+    </div>
+}
+
+<div class="registrar-visitante-page">
+    <div class="registrar-visitante-card">
+        <h1 class="registrar-visitante-title">
+            @TranslationService["RegistrarVisitante"]
+        </h1>
+
+        <div class="registrar-grid">
+            <div class="form-group col-6">
+                <label class="form-label">@TranslationService["NombreVisitante"]</label>
+                <div class="input-icon-wrapper">
+                    <i class="bi bi-person input-icon"></i>
+                    <input class="popup-demo-textbox"
+                           placeholder="@TranslationService["NombreVisitante"]"
+                           @bind="visitante.Nombre" />
+                </div>
+            </div>
+
+            <div class="form-group col-6">
+                <label class="form-label">@TranslationService["PrimerApellido"]</label>
+                <div class="input-icon-wrapper">
+                    <i class="bi bi-person-vcard input-icon"></i>
+                    <input class="popup-demo-textbox"
+                           placeholder="@TranslationService["PrimerApellido"]"
+                           @bind="visitante.PrimerApellido" />
+                </div>
+            </div>
+
+            <div class="form-group col-6">
+                <label class="form-label">@TranslationService["Empresa"] <span style="font-weight:400;color:#9ca3af;font-size:0.82rem;">(opcional)</span></label>
+                <div class="input-icon-wrapper">
+                    <i class="bi bi-building input-icon"></i>
+                    <input class="popup-demo-textbox"
+                           placeholder="@TranslationService["Empresa"]"
+                           @bind="visitante.Empresa" />
+                </div>
+            </div>
+
+            <div class="form-group col-6">
+                <label class="form-label">@TranslationService["NumeroDeTelefono"]</label>
+                <div class="input-icon-wrapper">
+                    <i class="bi bi-telephone input-icon"></i>
+                    <input class="popup-demo-textbox"
+                           placeholder="@TranslationService["NumeroDeTelefono"]"
+                           inputmode="numeric"
+                           @bind="visitante.Telefono" />
+                </div>
+            </div>
+
+            <div class="form-group col-12">
+                <label class="form-label">@TranslationService["CorreoVisitante"]</label>
+                <div class="input-icon-wrapper">
+                    <i class="bi bi-envelope input-icon"></i>
+                    <input class="popup-demo-textbox"
+                           type="email"
+                           placeholder="@TranslationService["CorreoVisitante"]"
+                           @bind="visitante.Correo" />
+                </div>
+            </div>
+        </div>
+
+        <div class="acciones">
+            <button class="kiosk-btn" @onclick="HandleContinue">
+                <i class="bi bi-arrow-right-circle me-2"></i>
+                @TranslationService["Continuar"]
+            </button>
+        </div>
+    </div>
+</div>
+
+@code
+{
+    bool _isLoading { get; set; }
+    private VisitanteDTO visitante = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _isLoading = true;
+        StateHasChanged();
+
+        await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+
+        visitante = await LocalStorage.GetItemAsync<VisitanteDTO>("visitante") ?? new();
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task HandleContinue()
+    {
+        var validator = new VisitantesDTOValidator(TranslationService);
+        var validationResult = validator.Validate(visitante);
+
+        if (!validationResult.IsValid)
+        {
+            var mensajes = validationResult.Errors
+                .Select(x => x.ErrorMessage)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct();
+
+            ToastService.MostrarError(string.Join(" · ", mensajes));
+            return;
+        }
+
+        var resultCorreo = await GestionAccesosService.GetVisitanteByCorreo(visitante.Correo);
+        if (resultCorreo.Data != null && resultCorreo.Data.IdVisitante != visitante.IdVisitante)
+        {
+            ToastService.MostrarError(TranslationService["YaExisteOtroVisitanteConEsteCorreo"]);
+            return;
+        }
+
+        bool esNuevo = visitante.IdVisitante == 0;
+
+        if (esNuevo)
+        {
+            await LocalStorage.SetItemAsync("visitante", visitante);
+            ToastService.MostrarOk(TranslationService["InformacionGuardadaContinue"]);
+            Navigator.NavigateTo("/TomarFoto");
+        }
+        else
+        {
+            var result = await GestionAccesosService.TratarVisitante(visitante);
+
+            if (result.Errors.Count == 0 && result.Data != null)
+            {
+                visitante = result.Data;
+                await LocalStorage.SetItemAsync("visitante", visitante);
+
+                ToastService.MostrarOk(TranslationService["VisitanteActualizadoCorrectamente"]);
+                Navigator.NavigateTo("/ConfirmarVisita");
+            }
+            else
+            {
+                ToastService.MostrarError(string.Join(" - ", result.Errors));
+            }
+        }
+    }
+}

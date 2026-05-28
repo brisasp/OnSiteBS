@@ -1,0 +1,417 @@
+@page "/GestionAusencias"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+
+@using System.Collections.ObjectModel
+
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+
+<PageTitle>Gestión Ausencias</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando ausencias...</span>
+        </div>
+    </div>
+}
+
+<div class="ausencias-page">
+
+    <section class="ausencias-hero">
+        <div>
+            <span class="ausencias-kicker">RRHH</span>
+            <h1>Gestión de ausencias</h1>
+            <p>Consulta y filtra las ausencias registradas por los trabajadores.</p>
+        </div>
+
+        <div class="ausencias-kpis">
+            <div class="ausencias-kpi total">
+                <span class="kpi-num">@Data.Count</span>
+                <span class="kpi-label">Total</span>
+            </div>
+            <div class="ausencias-kpi open">
+                <span class="kpi-num">@Data.Count(a => !a.HoraFin.HasValue)</span>
+                <span class="kpi-label">Abiertas</span>
+            </div>
+            <div class="ausencias-kpi closed">
+                <span class="kpi-num">@Data.Count(a => a.HoraFin.HasValue)</span>
+                <span class="kpi-label">Cerradas</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="ausencias-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar trabajador..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="toolbar-dates">
+            <label>
+                Desde
+                <input type="date" @bind="DateDesde" />
+            </label>
+            <label>
+                Hasta
+                <input type="date" @bind="DateHasta" />
+            </label>
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-primary" @onclick="CargarFiltrado">
+                <i class="bi bi-funnel"></i>
+                Filtrar
+            </button>
+            <button type="button" class="btn-ui btn-soft @(_soloAbiertas ? "active" : "")" @onclick="ToggleSoloAbiertas">
+                <i class="bi bi-door-open"></i>
+                @(_soloAbiertas ? "Ver todas" : "Solo abiertas")
+            </button>
+            <button type="button" class="btn-ui btn-soft" @onclick="CargarHoy">
+                Hoy
+            </button>
+            <button type="button" class="btn-ui btn-primary" @onclick="AbrirModalNueva">
+                <i class="bi bi-plus-lg"></i>
+                Nueva ausencia
+            </button>
+        </div>
+    </section>
+
+    @if (_mostrarModal)
+    {
+        <div class="modal-backdrop-custom" @onclick="CerrarModal">
+            <div class="ausencia-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>Nueva ausencia</h3>
+                        <p>Registra una ausencia manualmente para un trabajador.</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body-custom">
+                    <div class="form-grid">
+                        <div class="form-field full-width">
+                            <label>Trabajador *</label>
+                            <div class="autocomplete-wrap">
+                                <input type="text"
+                                       placeholder="Escribe nombre, apellido o DNI..."
+                                       @bind="_trabajadorSearch"
+                                       @bind:event="oninput"
+                                       @onfocus="() => _mostrarSugerencias = true"
+                                       autocomplete="off" />
+                                @if (_mostrarSugerencias && !string.IsNullOrWhiteSpace(_trabajadorSearch))
+                                {
+                                    var sugerencias = _trabajadores
+                                        .Where(t => $"{t.Nombre} {t.Apellido1} {t.Apellido2} {t.Dni}"
+                                            .Contains(_trabajadorSearch, StringComparison.OrdinalIgnoreCase))
+                                        .Take(8)
+                                        .ToList();
+
+                                    @if (sugerencias.Any())
+                                    {
+                                        <ul class="autocomplete-list">
+                                            @foreach (var t in sugerencias)
+                                            {
+                                                <li @onclick="() => SeleccionarTrabajador(t)">
+                                                    <span class="ac-nombre">@t.Nombre @t.Apellido1 @t.Apellido2</span>
+                                                    <span class="ac-dni">@t.Dni</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                }
+                            </div>
+                            @if (_nuevaIdTrabajador > 0)
+                            {
+                                <span class="selected-badge">
+                                    <i class="bi bi-person-check"></i>
+                                    @_trabajadorSearch
+                                    <button type="button" @onclick="LimpiarTrabajador"><i class="bi bi-x"></i></button>
+                                </span>
+                            }
+                        </div>
+
+                        <div class="form-field full-width">
+                            <label>Tipo de ausencia *</label>
+                            <select @bind="_nuevaIdTipo">
+                                <option value="0">-- Selecciona un tipo --</option>
+                                @foreach (var tipo in _tipos)
+                                {
+                                    <option value="@tipo.IdTipoAusencia">@tipo.Descripcion</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="form-field full-width">
+                            <label>Observaciones</label>
+                            <input type="text" placeholder="Notas adicionales (opcional)..." @bind="_nuevaObs" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn-ui btn-primary" @onclick="GuardarNuevaAusencia" disabled="@_guardando">
+                        @if (_guardando) { <span class="btn-spinner"></span> }
+                        else { <i class="bi bi-check-lg"></i> }
+                        Registrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!AusenciasFiltradas.Any())
+    {
+        <div class="ausencias-empty">
+            <i class="bi bi-calendar-x"></i>
+            <strong>No hay ausencias para mostrar</strong>
+            <span>Prueba ajustando el rango de fechas o el filtro de búsqueda.</span>
+        </div>
+    }
+    else
+    {
+        <div class="ausencias-feed">
+            @foreach (var a in AusenciasFiltradas)
+            {
+                var abierta = !a.HoraFin.HasValue;
+                var iniciales = GetIniciales(a.NombreCompleto);
+                var colorIdx = Math.Abs((a.NombreCompleto ?? "").GetHashCode()) % _avatarColors.Length;
+
+                <div class="ausencia-card @(abierta ? "ausencia-card--open" : "")">
+                    <div class="ausencia-avatar" style="background: @_avatarColors[colorIdx]">
+                        @iniciales
+                    </div>
+
+                    <div class="ausencia-main">
+                        <div class="ausencia-top">
+                            <span class="ausencia-nombre">@a.NombreCompleto</span>
+                            <span class="ausencia-status @(abierta ? "status-open" : "status-closed")">
+                                <i class="bi @(abierta ? "bi-circle-fill" : "bi-check-circle-fill")"></i>
+                                @(abierta ? "Abierta" : "Cerrada")
+                            </span>
+                        </div>
+
+                        <div class="ausencia-meta">
+                            @if (!string.IsNullOrWhiteSpace(a.DescripcionMotivo))
+                            {
+                                <span class="ausencia-motivo">
+                                    <i class="bi bi-tag"></i>
+                                    @a.DescripcionMotivo
+                                </span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(a.Observaciones))
+                            {
+                                <span class="ausencia-obs">
+                                    <i class="bi bi-chat-text"></i>
+                                    @a.Observaciones
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="ausencia-time">
+                        <div class="time-block">
+                            <i class="bi bi-box-arrow-in-right"></i>
+                            <span>@a.HoraInicio.ToString("dd/MM HH:mm")</span>
+                        </div>
+                        @if (a.HoraFin.HasValue)
+                        {
+                            <div class="time-block">
+                                <i class="bi bi-box-arrow-right"></i>
+                                <span>@a.HoraFin.Value.ToString("dd/MM HH:mm")</span>
+                            </div>
+                        }
+                        <div class="duracion-pill">
+                            <i class="bi bi-hourglass-split"></i>
+                            @GetDuracion(a)
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _soloAbiertas;
+    private bool _mostrarModal;
+    private bool _guardando;
+
+    private readonly string[] _avatarColors = { "#a91c32", "#2563eb", "#16a34a", "#ca8a04", "#7c3aed", "#0891b2", "#db2777" };
+
+    private ObservableCollection<AusenciasTrabajadorDTO> Data = new();
+    private List<TrabajadoresDTO> _trabajadores = new();
+    private List<TiposAusenciumDTO> _tipos = new();
+
+    private int _nuevaIdTrabajador;
+    private int _nuevaIdTipo;
+    private string _nuevaObs = string.Empty;
+    private string _trabajadorSearch = string.Empty;
+    private bool _mostrarSugerencias;
+
+    private DateTime DateDesde { get; set; } = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime DateHasta { get; set; } = DateTime.Today;
+    private string SearchText { get; set; } = string.Empty;
+
+    private IEnumerable<AusenciasTrabajadorDTO> AusenciasFiltradas
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(SearchText))
+                return Data;
+
+            var text = SearchText.Trim().ToLower();
+            return Data.Where(a => a.NombreCompleto.ToLower().Contains(text));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            await Task.WhenAll(CargarGrid(), CargarDesplegables());
+        }
+        catch (Exception ex) { ToastService.MostrarError($"Error al cargar ausencias: {ex.Message}"); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CargarDesplegables()
+    {
+        var trabResult = await GestionAccesosService.GetAllTrabajadores();
+        if (trabResult?.Data != null)
+            _trabajadores = trabResult.Data;
+
+        var tiposResult = await GestionAccesosService.GetAllTiposAusencia();
+        if (tiposResult?.Data != null)
+            _tipos = tiposResult.Data.Where(t => t.Activo == true).ToList();
+    }
+
+    private async Task CargarGrid()
+    {
+        var result = await GestionAccesosService.GetAllAusencias(
+            DateDesde,
+            DateHasta.AddDays(1).AddSeconds(-1),
+            soloAbiertas: _soloAbiertas);
+
+        if (result.Errors.Any())
+        {
+            ToastService.MostrarError(result.Errors.First());
+            return;
+        }
+
+        Data = new ObservableCollection<AusenciasTrabajadorDTO>(result.Data);
+    }
+
+    private async Task CargarFiltrado()
+    {
+        _isLoading = true;
+        try { await CargarGrid(); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CargarHoy()
+    {
+        DateDesde = DateTime.Today;
+        DateHasta = DateTime.Today;
+        _isLoading = true;
+        try { await CargarGrid(); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task ToggleSoloAbiertas()
+    {
+        _soloAbiertas = !_soloAbiertas;
+        _isLoading = true;
+        try { await CargarGrid(); }
+        finally { _isLoading = false; }
+    }
+
+    private static string FormatFecha(DateTime? fecha)
+        => fecha.HasValue ? fecha.Value.ToString("dd/MM/yyyy HH:mm") : "-";
+
+    private static string GetDuracion(AusenciasTrabajadorDTO a)
+    {
+        var fin = a.HoraFin ?? DateTime.Now;
+        var dur = fin - a.HoraInicio;
+        return $"{(int)dur.TotalHours}h {dur.Minutes:D2}m";
+    }
+
+    private static string GetIniciales(string? nombre)
+    {
+        if (string.IsNullOrWhiteSpace(nombre)) return "?";
+        var partes = nombre.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return partes.Length >= 2
+            ? $"{partes[0][0]}{partes[1][0]}".ToUpper()
+            : partes[0][0].ToString().ToUpper();
+    }
+
+    private void AbrirModalNueva()
+    {
+        _nuevaIdTrabajador = 0;
+        _nuevaIdTipo = 0;
+        _nuevaObs = string.Empty;
+        _trabajadorSearch = string.Empty;
+        _mostrarSugerencias = false;
+        _mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModal = false;
+        _mostrarSugerencias = false;
+    }
+
+    private void SeleccionarTrabajador(TrabajadoresDTO t)
+    {
+        _nuevaIdTrabajador = t.IdTrabajador;
+        _trabajadorSearch = $"{t.Nombre} {t.Apellido1} {t.Apellido2}".Trim();
+        _mostrarSugerencias = false;
+    }
+
+    private void LimpiarTrabajador()
+    {
+        _nuevaIdTrabajador = 0;
+        _trabajadorSearch = string.Empty;
+    }
+
+    private async Task GuardarNuevaAusencia()
+    {
+        if (_nuevaIdTrabajador == 0)
+        { ToastService.MostrarError("Selecciona un trabajador."); return; }
+
+        if (_nuevaIdTipo == 0)
+        { ToastService.MostrarError("Selecciona un tipo de ausencia."); return; }
+
+        _guardando = true;
+        try
+        {
+            var result = await GestionAccesosService.GestionarAusencia(
+                _nuevaIdTrabajador, "abrir", _nuevaIdTipo,
+                string.IsNullOrWhiteSpace(_nuevaObs) ? null : _nuevaObs);
+
+            if (result.Errors.Any())
+            { ToastService.MostrarError(result.Errors.First()); return; }
+
+            ToastService.MostrarOk("Ausencia registrada correctamente.");
+            CerrarModal();
+            _isLoading = true;
+            try { await CargarGrid(); }
+            finally { _isLoading = false; }
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

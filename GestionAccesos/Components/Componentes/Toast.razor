@@ -1,0 +1,84 @@
+﻿@inject IToastService ToastService
+@implements IDisposable
+
+<div class="toast-container">
+    @foreach (var toast in toasts)
+    {
+        <div class="toast-item @toast.CssClass @(toast.IsClosing ? "toast-leaving" : "toast-entering")">
+            <div class="toast-content">
+                <i class="@toast.IconClass toast-icon"></i>
+
+                <div class="toast-text-block">
+                    <span class="toast-message">@toast.Message</span>
+                </div>
+            </div>
+
+            <button type="button"
+                    class="toast-close"
+                    @onclick="() => CloseToastAsync(toast)">
+                <i class="bi bi-x-lg"></i>
+            </button>
+
+            <div class="toast-progress">
+                <div class="toast-progress-bar"
+                     style="@($"animation-duration: {toast.Duration}ms;")"></div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly List<ToastMessage> toasts = new();
+    private const int ExitAnimationMs = 350;
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnShow += ShowToast;
+        ToastService.OnClear += ClearToasts;
+    }
+
+    private void ShowToast(ToastMessage message)
+    {
+        toasts.Add(message);
+        InvokeAsync(StateHasChanged);
+
+        _ = AutoCloseToastAsync(message);
+    }
+
+    private async Task AutoCloseToastAsync(ToastMessage message)
+    {
+        await Task.Delay(message.Duration);
+
+        if (toasts.Any(x => x.Id == message.Id && !x.IsClosing))
+        {
+            await CloseToastAsync(message);
+        }
+    }
+
+    private async Task CloseToastAsync(ToastMessage message)
+    {
+        var toast = toasts.FirstOrDefault(x => x.Id == message.Id);
+        if (toast is null || toast.IsClosing)
+            return;
+
+        toast.IsClosing = true;
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(ExitAnimationMs);
+
+        toasts.Remove(toast);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearToasts()
+    {
+        toasts.Clear();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ToastService.OnShow -= ShowToast;
+        ToastService.OnClear -= ClearToasts;
+    }
+}

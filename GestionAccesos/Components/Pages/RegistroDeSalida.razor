@@ -1,0 +1,231 @@
+@page "/RegistroDeSalida"
+@layout NoMenuLayout
+
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+@inject AppNavigator Navigator
+@inject TranslationService TranslationService
+@inject ILocalStorageService LocalStorage
+
+<PageTitle>@TranslationService["RegistroDeSalidaTitulo"]</PageTitle>
+
+<SplashScreen Visible="_isLoading"
+              Title="@TranslationService["TituloSplash"]"
+              Subtitle="@TranslationService["ProcesandoSalida"]" />
+
+@if (!_isLoading && !_salidaConfirmada)
+{
+    <div class="salida-page">
+        <section class="salida-card">
+            <div class="salida-icon">
+                <i class="bi bi-box-arrow-right"></i>
+            </div>
+
+            <span class="salida-kicker">@TranslationService["ControlDeAccesos"]</span>
+            <h1>@TranslationService["RegistroDeSalidaTitulo"]</h1>
+            <p>@TranslationService["IntroduceIdONombre"]</p>
+
+            <div class="salida-form">
+                <label for="salidaInput">@TranslationService["IdONombreLabel"]</label>
+
+                <input id="salidaInput"
+                       class="salida-input @(_busquedaPorNombre ? "salida-input-texto" : "")"
+                       type="text"
+                       placeholder="@TranslationService["PlaceholderBusqueda"]"
+                       value="@_busqueda"
+                       @oninput="OnBusquedaChanged"
+                       @onkeydown="HandleKeyDown"
+                       autocomplete="off" />
+
+                @if (_visitanteSeleccionado != null && !_busquedaPorNombre)
+                {
+                    <div class="salida-nombre-confirmado">
+                        <i class="bi bi-person-check-fill"></i>
+                        @_visitanteSeleccionado.NombreCompleto
+                    </div>
+                }
+
+                @if (_busquedaPorNombre && _sugerencias.Any())
+                {
+                    <ul class="salida-sugerencias">
+                        @foreach (var v in _sugerencias)
+                        {
+                            <li class="salida-sugerencia-item @(_visitanteSeleccionado?.IdVisitante == v.IdVisitante ? "seleccionada" : "")"
+                                @onclick="() => SeleccionarVisitante(v)">
+                                <span class="sugerencia-id">ID @v.IdVisitante</span>
+                                <span class="sugerencia-nombre">@v.NombreCompleto</span>
+                                @if (!string.IsNullOrEmpty(v.Empresa))
+                                {
+                                    <span class="sugerencia-empresa">@v.Empresa</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @if (_busquedaPorNombre && !string.IsNullOrWhiteSpace(_busqueda) && !_sugerencias.Any())
+                {
+                    <p class="salida-sin-resultados">@TranslationService["SinResultadosNombre"]</p>
+                }
+
+                <button class="salida-btn" @onclick="RegistrarSalida"
+                        disabled="@(_isLoading || _visitanteSeleccionado == null)">
+                    <i class="bi bi-box-arrow-right"></i>
+                    @TranslationService["BotonRegistrarSalida"]
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (!_isLoading && _salidaConfirmada)
+{
+    <div class="salida-page">
+        <div class="salida-confirmacion-card">
+            <span class="salida-emoji">👋</span>
+            <h1 class="salida-confirmacion-titulo">@TranslationService["HastaPronto"]</h1>
+            <p class="salida-confirmacion-texto">@TranslationService["EsperamosVerte"], <strong>@_nombreVisitante</strong>.</p>
+            <div class="confirmacion-barra">
+                <div class="confirmacion-barra-progreso"></div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string _busqueda = string.Empty;
+    private bool _busquedaPorNombre = false;
+    private bool _isLoading = false;
+    private bool _salidaConfirmada = false;
+    private bool _navegacionProgramada = false;
+    private string _nombreVisitante = string.Empty;
+
+    private VisitanteDTO? _visitanteSeleccionado;
+    private List<VisitanteDTO> _visitantesConVisitaAbierta = new();
+    private List<VisitanteDTO> _sugerencias = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+            await CargarVisitantesActivos();
+            StateHasChanged();
+        }
+
+        if (_salidaConfirmada && !_navegacionProgramada)
+        {
+            _navegacionProgramada = true;
+            await Task.Delay(5000);
+            Navigator.NavigateTo("/", true);
+        }
+    }
+
+    private async Task CargarVisitantesActivos()
+    {
+        var visitasAbiertas = await GestionAccesosService.GetVisitasAbiertas();
+        if (visitasAbiertas?.Data == null) return;
+
+        var todosVisitantes = await GestionAccesosService.GetAllVisitantes();
+        if (todosVisitantes?.Data == null) return;
+
+        var idsConVisita = visitasAbiertas.Data.Select(v => v.IdVisitante).ToHashSet();
+        _visitantesConVisitaAbierta = todosVisitantes.Data
+            .Where(v => idsConVisita.Contains(v.IdVisitante))
+            .ToList();
+    }
+
+    private void OnBusquedaChanged(ChangeEventArgs e)
+    {
+        _busqueda = e.Value?.ToString() ?? string.Empty;
+        _visitanteSeleccionado = null;
+
+        if (string.IsNullOrWhiteSpace(_busqueda))
+        {
+            _busquedaPorNombre = false;
+            _sugerencias = new();
+            return;
+        }
+
+        if (int.TryParse(_busqueda.Trim(), out var id))
+        {
+            _busquedaPorNombre = false;
+            _sugerencias = new();
+            var v = _visitantesConVisitaAbierta.FirstOrDefault(x => x.IdVisitante == id);
+            if (v != null) _visitanteSeleccionado = v;
+        }
+        else
+        {
+            _busquedaPorNombre = true;
+            var q = _busqueda.Trim().ToLower();
+            _sugerencias = _visitantesConVisitaAbierta
+                .Where(v => v.NombreCompleto.ToLower().Contains(q))
+                .Take(5)
+                .ToList();
+        }
+    }
+
+    private void SeleccionarVisitante(VisitanteDTO v)
+    {
+        _visitanteSeleccionado = v;
+        _busqueda = v.NombreCompleto;
+        _busquedaPorNombre = false;
+        _sugerencias = new();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && _visitanteSeleccionado != null)
+            await RegistrarSalida();
+    }
+
+    private async Task RegistrarSalida()
+    {
+        if (_visitanteSeleccionado == null)
+        {
+            ToastService.MostrarError(TranslationService["SeleccionaVisitanteParaSalida"]);
+            return;
+        }
+
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var visitasAbiertas = await GestionAccesosService.GetVisitasAbiertas();
+            var visitaAbierta = visitasAbiertas?.Data?
+                .FirstOrDefault(v => v.IdVisitante == _visitanteSeleccionado.IdVisitante);
+
+            if (visitaAbierta == null)
+            {
+                ToastService.MostrarError(TranslationService["VisitaAbiertaNoEncontrada"]);
+                return;
+            }
+
+            var result = await GestionAccesosService.TratarVisita(new VisitaDTO
+            {
+                IdVisita = visitaAbierta.IdVisita,
+                IdVisitante = visitaAbierta.IdVisitante,
+                IdPersona = visitaAbierta.IdPersona
+            });
+
+            if (result?.Errors?.Count == 0)
+            {
+                _nombreVisitante = _visitanteSeleccionado.NombreCompleto;
+                _salidaConfirmada = true;
+            }
+            else
+            {
+                ToastService.MostrarError(TranslationService["HuboUnErrorAlConfirmarLaVisita"]);
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"{TranslationService["HuboUnErrorAlConfirmarLaVisita"]}: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

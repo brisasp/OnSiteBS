@@ -1,0 +1,512 @@
+@page "/GestionFichajes"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+
+@using System.Collections.ObjectModel
+@using Microsoft.AspNetCore.Components.Forms
+
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+@inject PdfExporter PdfExporter
+@inject ExcelExportCoordinator ExcelExporter
+
+<PageTitle>Gestión Fichajes</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando fichajes...</span>
+        </div>
+    </div>
+}
+
+<div class="fichajes-page">
+
+    <section class="fichajes-hero">
+        <div>
+            <span class="fichajes-kicker">RRHH</span>
+            <h1>Gestión de fichajes</h1>
+            <p>Consulta, filtra, registra y corrige los fichajes de los trabajadores.</p>
+        </div>
+
+        <div class="hero-stats">
+            <div class="stat-card">
+                <span>Total</span>
+                <strong>@Data.Count</strong>
+            </div>
+            <div class="stat-card">
+                <span>Abiertos</span>
+                <strong>@Data.Count(f => !f.HoraSalida.HasValue)</strong>
+            </div>
+            <div class="stat-card">
+                <span>Cerrados</span>
+                <strong>@Data.Count(f => f.HoraSalida.HasValue)</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="fichajes-toolbar-card">
+        <div class="toolbar-search">
+            <i class="bi bi-search"></i>
+            <input placeholder="Buscar trabajador..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+        </div>
+
+        <div class="toolbar-dates">
+            <label>
+                Desde
+                <input type="date" @bind="DateDesde" />
+            </label>
+            <label>
+                Hasta
+                <input type="date" @bind="DateHasta" />
+            </label>
+        </div>
+
+        <div class="toolbar-actions">
+            <button type="button" class="btn-ui btn-primary" @onclick="CargarFiltrado">
+                <i class="bi bi-funnel"></i>
+                Filtrar
+            </button>
+            <button type="button" class="btn-ui btn-soft @(_soloAbiertos ? "active" : "")" @onclick="ToggleSoloAbiertos">
+                <i class="bi bi-door-open"></i>
+                @(_soloAbiertos ? "Ver todos" : "Solo abiertos")
+            </button>
+            @if (DateDesde != DateTime.Today || DateHasta != DateTime.Today)
+            {
+                <button type="button" class="btn-ui btn-soft" @onclick="CargarHoy">
+                    Hoy
+                </button>
+            }
+
+            <div class="export-dropdown @(_exportMenuAbierto ? "open" : "")">
+                <button type="button" class="btn-ui btn-export" @onclick="ToggleExportMenu">
+                    <i class="bi bi-download"></i>
+                    Exportar
+                    <i class="bi bi-chevron-down chev"></i>
+                </button>
+                <div class="export-menu">
+                    <button type="button" @onclick="ExportarExcel">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        Excel (.xlsx)
+                    </button>
+                    <button type="button" @onclick="ExportarPdf">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                        PDF (.pdf)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="fichajes-table-card">
+        <div class="table-card-header">
+            <div>
+                <h2>Listado de fichajes</h2>
+                <p>@FichajesFiltrados.Count() @(FichajesFiltrados.Count() == 1 ? "fichaje encontrado" : "fichajes encontrados")</p>
+            </div>
+            <button type="button" class="btn-ui btn-primary" @onclick="() => AbrirModal(null)">
+                <i class="bi bi-plus-lg"></i>
+                Nuevo fichaje
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="fichajes-table">
+                <thead>
+                    <tr>
+                        <th>Acciones</th>
+                        <th>ID</th>
+                        <th>Trabajador</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Duración</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!FichajesFiltrados.Any())
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state">
+                                    <i class="bi bi-calendar-x"></i>
+                                    <strong>No hay fichajes para mostrar</strong>
+                                    <span>Prueba ajustando el rango de fechas o el filtro de búsqueda.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var f in FichajesFiltrados)
+                        {
+                            var abierto = !f.HoraSalida.HasValue;
+                            <tr>
+                                <td>
+                                    <div class="row-actions">
+                                        <button type="button" class="btn-icon edit" title="Editar" @onclick="() => AbrirModal(f)">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        @if (abierto)
+                                        {
+                                            <button type="button" class="btn-icon close-btn" title="Cerrar fichaje" @onclick="() => CerrarFichaje(f)">
+                                                <i class="bi bi-box-arrow-right"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                                <td>@f.IdTrabajador</td>
+                                <td class="strong-cell">@f.NombreCompleto</td>
+                                <td>@FormatFecha(f.HoraEntrada)</td>
+                                <td>@(f.HoraSalida.HasValue ? FormatFecha(f.HoraSalida) : "-")</td>
+                                <td>@GetDuracion(f)</td>
+                                <td>
+                                    <span class="badge @(abierto ? "badge-open" : "badge-closed")">
+                                        @(abierto ? "Abierto" : "Cerrado")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @* Modal crear / editar *@
+    @if (_mostrarModal)
+    {
+        <div class="modal-backdrop-custom" @onclick="CerrarModal">
+            <div class="fichaje-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>@(_editando.IdFichaje == 0 ? "Nuevo fichaje" : "Editar fichaje")</h3>
+                        <p>@(_editando.IdFichaje == 0 ? "Registra manualmente un fichaje." : $"Editando fichaje #{_editando.IdFichaje}")</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body-custom">
+                    <div class="form-grid">
+                        <div class="form-field full-width autocomplete-wrapper">
+                            <label>Trabajador *</label>
+                            <input type="text"
+                                   placeholder="Buscar trabajador..."
+                                   value="@_busquedaTrabajador"
+                                   @oninput="OnBusquedaInput"
+                                   @onfocus="() => _mostrarSugerencias = true"
+                                   autocomplete="off" />
+                            @if (_mostrarSugerencias && _trabajadoresFiltrados.Any())
+                            {
+                                <div class="autocomplete-dropdown">
+                                    @foreach (var t in _trabajadoresFiltrados)
+                                    {
+                                        var nombre = $"{t.Nombre} {t.Apellido1} {t.Apellido2}".Trim();
+                                        <div class="autocomplete-item" @onmousedown="() => SeleccionarTrabajador(t.IdTrabajador, nombre)">
+                                            <i class="bi bi-person"></i>
+                                            @nombre
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="form-field">
+                            <label>Hora de entrada *</label>
+                            <input type="datetime-local" @bind="_horaEntrada" />
+                        </div>
+
+                        <div class="form-field">
+                            <label>Hora de salida</label>
+                            <input type="datetime-local" @bind="_horaSalida" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn-ui btn-primary" @onclick="GuardarFichaje" disabled="@_guardando">
+                        @if (_guardando) { <span class="btn-spinner"></span> }
+                        else { <i class="bi bi-check-lg"></i> }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _guardando;
+    private bool _mostrarModal;
+    private bool _soloAbiertos;
+    private bool _exportMenuAbierto;
+
+    private ObservableCollection<FichajesTrabajadorDTO> Data = new();
+    private List<TrabajadoresDTO> _trabajadores = new();
+
+    private FichajesTrabajadorDTO _editando = new();
+    private DateTime? _horaEntrada;
+    private DateTime? _horaSalida;
+
+    private string _busquedaTrabajador = string.Empty;
+    private bool _mostrarSugerencias;
+
+    private IEnumerable<TrabajadoresDTO> _trabajadoresFiltrados =>
+        string.IsNullOrWhiteSpace(_busquedaTrabajador)
+            ? _trabajadores
+            : _trabajadores.Where(t =>
+                $"{t.Nombre} {t.Apellido1} {t.Apellido2}".Contains(_busquedaTrabajador, StringComparison.OrdinalIgnoreCase));
+
+    private DateTime DateDesde { get; set; } = DateTime.Today;
+    private DateTime DateHasta { get; set; } = DateTime.Today;
+    private string SearchText { get; set; } = string.Empty;
+
+    private IEnumerable<FichajesTrabajadorDTO> FichajesFiltrados
+    {
+        get
+        {
+            var lista = Data.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var text = SearchText.Trim().ToLower();
+                lista = lista.Where(f => f.NombreCompleto.ToLower().Contains(text));
+            }
+
+            return lista;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+
+        try
+        {
+            await Task.WhenAll(CargarGrid(), CargarTrabajadores());
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"Error al cargar fichajes: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task CargarGrid()
+    {
+        var result = await GestionAccesosService.GetAllFichajes(DateDesde, DateHasta.AddDays(1).AddSeconds(-1), _soloAbiertos);
+
+        if (result.Errors.Any())
+        {
+            ToastService.MostrarError(result.Errors.First());
+            return;
+        }
+
+        Data = new ObservableCollection<FichajesTrabajadorDTO>(result.Data);
+    }
+
+    private async Task CargarFiltrado()
+    {
+        _isLoading = true;
+        try { await CargarGrid(); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CargarHoy()
+    {
+        DateDesde = DateTime.Today;
+        DateHasta = DateTime.Today;
+        _isLoading = true;
+        try { await CargarGrid(); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task ToggleSoloAbiertos()
+    {
+        _soloAbiertos = !_soloAbiertos;
+        _isLoading = true;
+        try { await CargarGrid(); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CargarTrabajadores()
+    {
+        var result = await GestionAccesosService.GetAllTrabajadores();
+        if (result?.Data != null)
+            _trabajadores = result.Data.Where(t => !t.Borrado).OrderBy(t => t.Nombre).ToList();
+    }
+
+    private void AbrirModal(FichajesTrabajadorDTO? fichaje)
+    {
+        if (fichaje == null)
+        {
+            _editando = new FichajesTrabajadorDTO();
+            _horaEntrada = DateTime.Now;
+            _horaSalida = null;
+            _busquedaTrabajador = string.Empty;
+        }
+        else
+        {
+            _editando = new FichajesTrabajadorDTO
+            {
+                IdFichaje = fichaje.IdFichaje,
+                IdTrabajador = fichaje.IdTrabajador,
+                HoraEntrada = fichaje.HoraEntrada,
+                HoraSalida = fichaje.HoraSalida,
+                NombreCompleto = fichaje.NombreCompleto
+            };
+            _horaEntrada = fichaje.HoraEntrada;
+            _horaSalida = fichaje.HoraSalida;
+            _busquedaTrabajador = fichaje.NombreCompleto ?? string.Empty;
+        }
+
+        _mostrarSugerencias = false;
+        _mostrarModal = true;
+    }
+
+    private void OnBusquedaInput(ChangeEventArgs e)
+    {
+        _busquedaTrabajador = e.Value?.ToString() ?? string.Empty;
+        _editando.IdTrabajador = 0;
+        _mostrarSugerencias = true;
+    }
+
+    private void SeleccionarTrabajador(int id, string nombre)
+    {
+        _editando.IdTrabajador = id;
+        _busquedaTrabajador = nombre;
+        _mostrarSugerencias = false;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModal = false;
+        _editando = new FichajesTrabajadorDTO();
+    }
+
+    private async Task GuardarFichaje()
+    {
+        if (_editando.IdTrabajador == 0)
+        {
+            ToastService.MostrarError("Selecciona un trabajador.");
+            return;
+        }
+
+        if (_horaEntrada == null)
+        {
+            ToastService.MostrarError("La hora de entrada es obligatoria.");
+            return;
+        }
+
+        _editando.HoraEntrada = _horaEntrada;
+        _editando.HoraSalida = _horaSalida;
+        _guardando = true;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarFichaje(_editando);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk(_editando.IdFichaje == 0 ? "Fichaje creado." : "Fichaje actualizado.");
+            CerrarModal();
+            await CargarGrid();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task CerrarFichaje(FichajesTrabajadorDTO fichaje)
+    {
+        fichaje.HoraSalida = DateTime.Now;
+        _isLoading = true;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarFichaje(fichaje);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                fichaje.HoraSalida = null;
+                return;
+            }
+
+            ToastService.MostrarOk($"Fichaje de {fichaje.NombreCompleto} cerrado.");
+            await CargarGrid();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ToggleExportMenu() => _exportMenuAbierto = !_exportMenuAbierto;
+
+    private async Task ExportarExcel()
+    {
+        _exportMenuAbierto = false;
+        _isLoading = true;
+        try { await ExcelExporter.ExportarFichajes(FichajesFiltrados.ToList()); }
+        catch (Exception ex) { ToastService.MostrarError($"Error al exportar: {ex.Message}"); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task ExportarPdf()
+    {
+        _exportMenuAbierto = false;
+        _isLoading = true;
+        try
+        {
+            var resultFichajes = await GestionAccesosService.GetAllFichajes(DateDesde, DateHasta.AddDays(1).AddSeconds(-1));
+            var resultAusencias = await GestionAccesosService.GetAllAusencias(DateDesde, DateHasta.AddDays(1).AddSeconds(-1));
+
+            var fichajesExport = resultFichajes?.Data ?? new List<FichajesTrabajadorDTO>();
+            var ausenciasExport = resultAusencias?.Data ?? new List<AusenciasTrabajadorDTO>();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var text = SearchText.Trim().ToLower();
+                fichajesExport = fichajesExport.Where(f => f.NombreCompleto.ToLower().Contains(text)).ToList();
+                ausenciasExport = ausenciasExport.Where(a => a.NombreCompleto != null && a.NombreCompleto.ToLower().Contains(text)).ToList();
+            }
+
+            if (!fichajesExport.Any() && !ausenciasExport.Any())
+            {
+                ToastService.MostrarError("No hay datos para exportar en el período seleccionado.");
+                return;
+            }
+
+            await PdfExporter.ExportarInformeHorasPdf(fichajesExport, ausenciasExport, DateDesde, DateHasta);
+        }
+        catch (Exception ex) { ToastService.MostrarError($"Error al exportar: {ex.Message}"); }
+        finally { _isLoading = false; }
+    }
+
+    private static string FormatFecha(DateTime? fecha)
+        => fecha.HasValue ? fecha.Value.ToString("dd/MM/yyyy HH:mm") : "-";
+
+    private static string GetDuracion(FichajesTrabajadorDTO f)
+    {
+        if (!f.HoraEntrada.HasValue) return "-";
+        var fin = f.HoraSalida ?? DateTime.Now;
+        var dur = fin - f.HoraEntrada.Value;
+        return $"{(int)dur.TotalHours}h {dur.Minutes:D2}m";
+    }
+}

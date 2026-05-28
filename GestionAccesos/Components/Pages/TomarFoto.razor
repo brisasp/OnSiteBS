@@ -1,0 +1,109 @@
+@page "/TomarFoto"
+@layout NoMenuLayout
+@inject IJSRuntime JSRuntime
+@inject IToastService ToastService
+@inject ILocalStorageService LocalStorage
+@inject AppNavigator Navigator
+@inject TranslationService TranslationService
+@inject IGestionAccesosService GestionAccesosService
+
+<PageTitle>@TranslationService["TomarFoto"]</PageTitle>
+
+<SplashScreen Visible="_isLoading"
+              Title="@TranslationService["TituloSplash"]"
+              Subtitle="@TranslationService["CargandoCamara"]" />
+
+<div class="camera-wrapper">
+    <video id="videoFeed" autoplay playsinline class="video-feed"></video>
+    <img id="mockImage" src="/images/mock-persona.png" class="mock-image d-none" />
+    <canvas id="currentFrame" class="d-none"></canvas>
+
+    <div class="overlay">
+        <div class="mask"></div>
+        <button class="capture-button" @onclick="CaptureFrame">
+            @TranslationService["TomarFoto"]
+        </button>
+    </div>
+</div>
+
+@code {
+    private VisitanteDTO visitante = new();
+    private bool _isLoading = true;
+    private bool _videoStarted;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var savedLanguage = await LocalStorage.GetItemAsync<string>("selectedLanguage");
+        TranslationService.Load(savedLanguage ?? "es");
+
+        visitante = await LocalStorage.GetItemAsync<VisitanteDTO>("visitante") ?? new();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_videoStarted)
+        {
+            _videoStarted = true;
+
+            await JSRuntime.InvokeVoidAsync("startVideo", "videoFeed");
+
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CaptureFrame()
+    {
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            var frameUri = await JSRuntime.InvokeAsync<string>("captureFrame", "videoFeed", "currentFrame");
+
+            if (string.IsNullOrWhiteSpace(frameUri) || !frameUri.Contains(","))
+            {
+                ToastService.MostrarError(TranslationService["ErrorAlCapturarLaFoto"]);
+                return;
+            }
+
+            var imageBytes = Convert.FromBase64String(frameUri[(frameUri.IndexOf(',') + 1)..]);
+            visitante.Foto = imageBytes;
+
+            await LocalStorage.SetItemAsync("visitante", visitante);
+
+            bool esNuevo = visitante.IdVisitante == 0;
+
+            var result = await GestionAccesosService.TratarVisitante(visitante);
+
+            if (result.Errors.Count == 0)
+            {
+                visitante = result.Data;
+                await LocalStorage.SetItemAsync("visitante", visitante);
+
+                if (esNuevo)
+                {
+                    ToastService.MostrarOk(TranslationService["VisitanteRegistradoCorrectamenteConLaFoto"]);
+                    Navigator.NavigateTo("/FirmarAcuerdo");
+                }
+                else
+                {
+                    ToastService.MostrarOk(TranslationService["FotoEditadaCorrectamente"]);
+                    Navigator.NavigateTo("/ConfirmarVisita");
+                }
+            }
+            else
+            {
+                ToastService.MostrarError(string.Join(", ", result.Errors));
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.MostrarError($"{TranslationService["ErrorAlCapturarLaFoto"]} {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

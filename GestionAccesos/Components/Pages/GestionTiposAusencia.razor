@@ -1,0 +1,294 @@
+@page "/GestionTiposAusencia"
+@attribute [Authorize(Roles = "Administrador,RRHH")]
+
+@using System.Collections.ObjectModel
+
+@inject IGestionAccesosService GestionAccesosService
+@inject IToastService ToastService
+
+<PageTitle>Tipos de ausencia</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="page-loader">
+        <div class="loader-card">
+            <div class="loader-spinner"></div>
+            <span>Cargando tipos de ausencia...</span>
+        </div>
+    </div>
+}
+
+<div class="tipos-page">
+
+    <section class="tipos-hero">
+        <div>
+            <span class="tipos-kicker">RRHH</span>
+            <h1>Tipos de ausencia</h1>
+            <p>Gestiona los motivos de ausencia disponibles para los trabajadores.</p>
+        </div>
+
+        <div class="tipos-summary">
+            <div class="summary-pill total">
+                <i class="bi bi-list-ul"></i>
+                <span>@Data.Count tipos</span>
+            </div>
+            <div class="summary-pill active">
+                <i class="bi bi-check-circle"></i>
+                <span>@Data.Count(t => t.Activo == true) activos</span>
+            </div>
+            <div class="summary-pill inactive">
+                <i class="bi bi-dash-circle"></i>
+                <span>@Data.Count(t => t.Activo != true) inactivos</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="tipos-grid">
+
+        @if (!Data.Any())
+        {
+            <div class="tipos-empty">
+                <i class="bi bi-list-ol"></i>
+                <strong>No hay tipos de ausencia</strong>
+                <span>Crea el primero pulsando el botón de abajo.</span>
+            </div>
+        }
+        else
+        {
+            @for (int i = 0; i < Data.Count; i++)
+            {
+                var tipo = Data[i];
+                var idx = i % _iconos.Length;
+                var icono = _iconos[idx];
+                var color = _coloresTipo[idx];
+                var activo = tipo.Activo == true;
+
+                <div class="tipo-card @(activo ? "" : "tipo-card--inactive")">
+                    <div class="tipo-card-icon" style="background: @(color)18; color: @color">
+                        <i class="bi @icono"></i>
+                    </div>
+
+                    <div class="tipo-card-body">
+                        <h3>@tipo.Descripcion</h3>
+                        <span class="tipo-meta">
+                            Creado @(tipo.FechaRegistro.HasValue ? tipo.FechaRegistro.Value.ToString("dd/MM/yyyy") : "—")
+                        </span>
+                    </div>
+
+                    <div class="tipo-card-footer">
+                        <span class="tipo-badge @(activo ? "tipo-badge--active" : "tipo-badge--inactive")">
+                            <i class="bi @(activo ? "bi-check-circle-fill" : "bi-dash-circle-fill")"></i>
+                            @(activo ? "Activo" : "Inactivo")
+                        </span>
+
+                        <div class="tipo-actions">
+                            <button type="button" class="tipo-btn-icon" title="Editar" @onclick="() => AbrirModal(tipo)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="tipo-btn-icon danger" title="Eliminar" @onclick="() => ConfirmarEliminar(tipo)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+        <button type="button" class="tipo-card tipo-card-add" @onclick="() => AbrirModal(null)">
+            <i class="bi bi-plus-lg"></i>
+            <span>Nuevo tipo</span>
+        </button>
+    </div>
+
+    @* Modal crear / editar *@
+    @if (_mostrarModal)
+    {
+        <div class="modal-backdrop-custom" @onclick="CerrarModal">
+            <div class="tipo-modal" @onclick:stopPropagation="true">
+                <div class="modal-header-custom">
+                    <div>
+                        <h3>@(_editando.IdTipoAusencia == 0 ? "Nuevo tipo de ausencia" : "Editar tipo de ausencia")</h3>
+                        <p>@(_editando.IdTipoAusencia == 0 ? "Rellena los datos del nuevo tipo." : $"Editando tipo #{_editando.IdTipoAusencia}")</p>
+                    </div>
+                    <button type="button" class="modal-close-btn" @onclick="CerrarModal">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body-custom">
+                    <div class="form-grid">
+                        <div class="form-field full-width">
+                            <label>Descripción *</label>
+                            <input type="text"
+                                   placeholder="Ej. Baja médica, Permiso personal..."
+                                   @bind="_editando.Descripcion" />
+                        </div>
+
+                        <div class="form-field full-width">
+                            <label>Estado</label>
+                            <select @bind="_activoString">
+                                <option value="true">Activo</option>
+                                <option value="false">Inactivo</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-custom">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn-ui btn-primary" @onclick="Guardar" disabled="@_guardando">
+                        @if (_guardando) { <span class="btn-spinner"></span> }
+                        else { <i class="bi bi-check-lg"></i> }
+                        Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Modal confirmación eliminar *@
+    @if (_mostrarConfirmacion)
+    {
+        <div class="modal-backdrop-custom" @onclick="CancelarEliminar">
+            <div class="confirm-modal" @onclick:stopPropagation="true">
+                <div class="confirm-icon">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <h3>¿Eliminar tipo de ausencia?</h3>
+                <p>Se eliminará <strong>"@_tipoAEliminar?.Descripcion"</strong>. Esta acción no se puede deshacer.</p>
+                <div class="confirm-actions">
+                    <button type="button" class="btn-ui btn-soft" @onclick="CancelarEliminar">Cancelar</button>
+                    <button type="button" class="btn-ui btn-danger" @onclick="Eliminar" disabled="@_guardando">
+                        @if (_guardando) { <span class="btn-spinner"></span> }
+                        else { <i class="bi bi-trash"></i> }
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isLoading;
+    private bool _guardando;
+    private bool _mostrarModal;
+    private bool _mostrarConfirmacion;
+
+    private readonly string[] _iconos = { "bi-bandaid", "bi-heart-pulse", "bi-house-door", "bi-person-x", "bi-briefcase", "bi-clock-history", "bi-calendar2-x", "bi-emoji-neutral" };
+    private readonly string[] _coloresTipo = { "#a91c32", "#2563eb", "#16a34a", "#ca8a04", "#7c3aed", "#0891b2", "#db2777", "#64748b" };
+
+    private ObservableCollection<TiposAusenciumDTO> Data = new();
+    private TiposAusenciumDTO _editando = new();
+    private TiposAusenciumDTO? _tipoAEliminar;
+    private string _activoString = "true";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        try { await CargarGrid(); }
+        catch (Exception ex) { ToastService.MostrarError($"Error al cargar tipos: {ex.Message}"); }
+        finally { _isLoading = false; }
+    }
+
+    private async Task CargarGrid()
+    {
+        var result = await GestionAccesosService.GetAllTiposAusencia();
+        if (result.Errors.Any())
+        {
+            ToastService.MostrarError(result.Errors.First());
+            return;
+        }
+        Data = new ObservableCollection<TiposAusenciumDTO>(result.Data);
+    }
+
+    private void AbrirModal(TiposAusenciumDTO? tipo)
+    {
+        _editando = tipo == null
+            ? new TiposAusenciumDTO { Activo = true }
+            : new TiposAusenciumDTO
+            {
+                IdTipoAusencia = tipo.IdTipoAusencia,
+                Descripcion = tipo.Descripcion,
+                Activo = tipo.Activo,
+                FechaRegistro = tipo.FechaRegistro
+            };
+
+        _activoString = (_editando.Activo == true).ToString().ToLower();
+        _mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        _mostrarModal = false;
+        _editando = new TiposAusenciumDTO();
+    }
+
+    private async Task Guardar()
+    {
+        if (string.IsNullOrWhiteSpace(_editando.Descripcion))
+        {
+            ToastService.MostrarError("La descripción es obligatoria.");
+            return;
+        }
+
+        _editando.Activo = _activoString == "true";
+        _guardando = true;
+
+        try
+        {
+            var result = await GestionAccesosService.TratarTipoAusencia(_editando);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk(_editando.IdTipoAusencia == 0 ? "Tipo creado." : "Tipo actualizado.");
+            CerrarModal();
+            await CargarGrid();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private void ConfirmarEliminar(TiposAusenciumDTO tipo)
+    {
+        _tipoAEliminar = tipo;
+        _mostrarConfirmacion = true;
+    }
+
+    private void CancelarEliminar()
+    {
+        _mostrarConfirmacion = false;
+        _tipoAEliminar = null;
+    }
+
+    private async Task Eliminar()
+    {
+        if (_tipoAEliminar == null) return;
+
+        _guardando = true;
+        try
+        {
+            var result = await GestionAccesosService.TratarTipoAusencia(_tipoAEliminar, eliminar: true);
+
+            if (result.Errors.Any())
+            {
+                ToastService.MostrarError(result.Errors.First());
+                return;
+            }
+
+            ToastService.MostrarOk("Tipo de ausencia eliminado.");
+            CancelarEliminar();
+            await CargarGrid();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+}

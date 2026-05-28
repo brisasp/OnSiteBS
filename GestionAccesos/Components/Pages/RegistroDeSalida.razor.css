@@ -1,0 +1,268 @@
+/* -- Layout -- */
+.salida-page {
+    min-height: calc(100vh - 70px);
+    background: #f7f7f8;
+    display: grid;
+    place-items: center;
+    padding: 3rem 1.5rem;
+    overflow: hidden;
+}
+
+/* -- Card -- */
+.salida-card {
+    width: min(100%, 520px);
+    text-align: center;
+    padding: 3.2rem 3rem;
+    border-radius: 32px;
+    background: #ffffff;
+    box-shadow: 0 25px 80px rgba(15, 23, 42, .08);
+    border: 1px solid rgba(15, 23, 42, .04);
+}
+
+/* -- Icon -- */
+.salida-icon {
+    width: 88px;
+    height: 88px;
+    margin: 0 auto 1.5rem;
+    border-radius: 28px;
+    background: #faf3f3;
+    display: grid;
+    place-items: center;
+    color: #c0392b;
+    font-size: 3.3rem;
+}
+
+/* -- Kicker / texto -- */
+.salida-kicker {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #c0392b;
+    margin-bottom: 0.5rem;
+}
+
+.salida-card h1 {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0 0 0.5rem;
+}
+
+.salida-card p {
+    font-size: 1rem;
+    color: #64748b;
+    margin: 0 0 2rem;
+}
+
+/* -- Form -- */
+.salida-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+}
+
+.salida-form label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    align-self: flex-start;
+}
+
+.salida-input {
+    width: 100%;
+    padding: 0.9rem 1.2rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.15em;
+    border: 2px solid #e5e7eb;
+    border-radius: 16px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    color: #0f172a;
+    background: #f9fafb;
+}
+
+.salida-input:focus {
+    border-color: #c0392b;
+    box-shadow: 0 0 0 4px rgba(192, 57, 43, 0.12);
+    background: #fff;
+}
+
+/* Quitar flechas del input number */
+.salida-input::-webkit-inner-spin-button,
+.salida-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* -- Preview nombre -- */
+.salida-nombre-confirmado {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.2rem;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 50px;
+    color: #166534;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* -- Input texto (b?squeda por nombre) -- */
+.salida-input-texto {
+    font-size: 1.1rem;
+    letter-spacing: 0;
+    font-weight: 500;
+}
+
+/* -- Sugerencias -- */
+.salida-sugerencias {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15,23,42,.07);
+}
+
+.salida-sugerencia-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.2rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.15s;
+}
+
+.salida-sugerencia-item:last-child { border-bottom: none; }
+
+.salida-sugerencia-item:hover,
+.salida-sugerencia-item.seleccionada {
+    background: #fef2f2;
+}
+
+.sugerencia-id {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #c0392b;
+    background: #fef2f2;
+    border-radius: 50px;
+    padding: 0.15rem 0.6rem;
+    white-space: nowrap;
+}
+
+.sugerencia-nombre {
+    font-weight: 600;
+    color: #0f172a;
+    flex: 1;
+}
+
+.sugerencia-empresa {
+    font-size: 0.82rem;
+    color: #6b7280;
+}
+
+.salida-sin-resultados {
+    font-size: 0.9rem;
+    color: #9ca3af;
+    text-align: center;
+    margin: 0;
+}
+
+/* -- Bot?n -- */
+.salida-btn {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    transition: opacity 0.2s, transform 0.15s;
+    margin-top: 0.5rem;
+}
+
+.salida-btn:hover:not(:disabled) {
+    opacity: 0.92;
+    transform: translateY(-1px);
+}
+
+.salida-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* -- Confirmaci?n (reutiliza estilos globales) -- */
+.confirmacion-page {
+    min-height: calc(100vh - 70px);
+    display: grid;
+    place-items: center;
+    background: #f7f7f8;
+    padding: 2rem;
+}
+
+@media (max-width: 640px) {
+    .salida-card {
+        padding: 2.2rem 1.5rem;
+        border-radius: 24px;
+    }
+
+    .salida-card h1 {
+        font-size: 1.9rem;
+    }
+}
+
+.salida-confirmacion-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+    padding: 3rem 2rem;
+}
+
+.salida-emoji {
+    font-size: 6rem;
+    line-height: 1;
+    animation: wave 1.2s ease-in-out infinite;
+    transform-origin: 70% 70%;
+    display: inline-block;
+}
+
+@keyframes wave {
+    0%   { transform: rotate(0deg); }
+    15%  { transform: rotate(18deg); }
+    30%  { transform: rotate(-8deg); }
+    45%  { transform: rotate(18deg); }
+    60%  { transform: rotate(-4deg); }
+    75%  { transform: rotate(10deg); }
+    100% { transform: rotate(0deg); }
+}
+
+.salida-confirmacion-titulo {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+}
+
+.salida-confirmacion-texto {
+    color: #64748b;
+    font-size: 1rem;
+    margin: 0;
+}

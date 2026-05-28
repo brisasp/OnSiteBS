@@ -1,0 +1,128 @@
+﻿@page "/"
+@layout NoMenuLayout
+@inject TranslationService TranslationService
+@inject ILocalStorageService LocalStorage
+@inject AppNavigator Navigator
+@inject IJSRuntime JS
+
+<div class="kiosk-container d-flex align-items-center justify-content-center kiosk-bienvenida">
+    <div class="kiosk-texto">
+        <div class="home-reloj">
+            <span class="home-reloj-hora">@_horaActual</span>
+            <span class="home-reloj-fecha">@_fechaActual</span>
+        </div>
+
+        <h1 class="display-4 text-dark d-flex align-items-center justify-content-center">
+            <span class="fw-bold">@TranslationService["Bienvenida"]</span>
+            <span>&nbsp;@TranslationService["letraa"]&nbsp;</span>
+            <span class="accent-text">@TranslationService["TituloAplicacion"]</span>
+        </h1>
+
+        <div class="kiosk-buttons mt-4 d-flex align-items-center justify-content-center">
+            <button class="kiosk-btn" @onclick="@(() => Navigator.NavigateTo("/AccesoVisitas"))">
+                @TranslationService["AccesoVisitas"]
+            </button>
+            <button class="kiosk-btn" @onclick="@(() => Navigator.NavigateTo("/fichaje"))">
+                @TranslationService["FicharETT"]
+            </button>
+        </div>
+    </div>
+
+    <div class="kiosk-logo-wrapper">
+        <div class="hero-clean">
+            <img src="Images/logo.svg" alt="OnSite" class="hero-watermark" />
+        </div>
+    </div>
+
+    <div class="kiosk-footer mt-4">
+        <button class="small-btn" @onclick="@(() => Navigator.NavigateTo("/Entregas"))">
+            <i class="bi bi-box-seam" style="margin-right: 0.5em;"></i> @TranslationService["Entrega"]
+        </button>
+        <button class="small-btn" @onclick="@(() => Navigator.NavigateTo("/RegistroDeSalida"))">
+            <i class="bi bi-box-arrow-right" style="margin-right: 0.5em;"></i> @TranslationService["RegistroSalida"]
+        </button>
+    </div>
+</div>
+
+<div class="kiosk-language">
+    <button class="small-btn" @onclick="ToggleDropdown" id="dropdownTopButton">
+        <i class="bi bi-globe2" style="margin-right: 6px;"></i>
+        @TranslationService["Idioma"]
+        <i class="bi bi-chevron-down dropdown-icon @(mostrarDropdown ? "rotate-up" : "")"></i>
+    </button>
+
+    @if (mostrarDropdown)
+    {
+        <div class="lang-dropdown">
+            <ul>
+                @foreach (var idioma in Enum.GetValues(typeof(Enums.Idiomas)))
+                {
+                    <li @onclick="() => CambiarIdioma((Enums.Idiomas)idioma)">
+                        @TranslationService[$"Idioma_{idioma}"]
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@implements IDisposable
+
+@code {
+    private bool mostrarDropdown = false;
+    private bool idiomaCargado = false;
+
+    private string _horaActual = DateTime.Now.ToString("HH:mm:ss");
+    private string _fechaActual = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"));
+    private System.Threading.Timer? _relojTimer;
+
+    public void Dispose() => _relojTimer?.Dispose();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !idiomaCargado)
+        {
+            idiomaCargado = true;
+
+            _relojTimer = new System.Threading.Timer(_ =>
+            {
+                _horaActual = DateTime.Now.ToString("HH:mm:ss");
+                _fechaActual = DateTime.Now.ToString("dddd, d 'de' MMMM 'de' yyyy", new System.Globalization.CultureInfo("es-ES"));
+                InvokeAsync(StateHasChanged);
+            }, null, 0, 1000);
+
+            await IdiomaHelper.CargarIdiomaAsync(LocalStorage, TranslationService);
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Task.CompletedTask;
+    }
+
+    private void ToggleDropdown()
+    {
+        mostrarDropdown = !mostrarDropdown;
+    }
+
+    private async Task CambiarIdioma(Enums.Idiomas idioma)
+    {
+        mostrarDropdown = false;
+        await IdiomaHelper.CambiarIdiomaAsync(idioma, LocalStorage, TranslationService);
+        StateHasChanged();
+    }
+
+    private bool IsCurrentCulture(Enums.Idiomas idioma)
+    {
+        var currentCulture = TranslationService.CurrentCulture;
+        return idioma switch
+        {
+            Enums.Idiomas.Español => currentCulture == "es",
+            Enums.Idiomas.English => currentCulture == "en",
+            Enums.Idiomas.Français => currentCulture == "fr",
+            Enums.Idiomas.العربية => currentCulture == "ar",
+            _ => false
+        };
+    }
+}

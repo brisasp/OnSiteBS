@@ -1,0 +1,72 @@
+﻿.camera-wrapper {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.video-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mask {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    backdrop-filter: blur(8px) brightness(30%);
+    -webkit-backdrop-filter: blur(8px) brightness(30%);
+    mask-image: radial-gradient(circle at 50% 40%, transparent 30%, black 31%);
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, transparent 30%, black 31%);
+    mask-composite: exclude;
+    -webkit-mask-composite: destination-out;
+}
+
+.capture-button {
+    z-index: 10;
+    pointer-events: auto;
+    background-color: #d7002d;
+    color: white;
+    border: none;
+    padding: 0.5% 6%;
+    border-radius: 25px;
+    font-size: 15px;
+    position: absolute;
+    bottom: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.content {
+    padding-top: 0 !important;
+}
+
+.px-4 {
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+}
+
+.mock-image {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    max-width: 400px;
+    object-fit: contain;
+    z-index: 1;
+}
